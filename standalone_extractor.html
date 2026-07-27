@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Media Extractor & Player (Standalone)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <style>
+    :root {
+      --bg-dark: #0F172A;
+      --bg-card: rgba(30, 41, 59, 0.75);
+      --panel-border: rgba(255, 255, 255, 0.12);
+      --primary: #3B82F6;
+      --primary-hover: #2563EB;
+      --success: #10B981;
+      --warning: #F59E0B;
+      --text-main: #F8FAFC;
+      --text-dim: #94A3B8;
+      --text-muted: #64748B;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+      --radius-sm: 8px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 1.5rem;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 800px;
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius-lg);
+      padding: 2rem;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .header h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: var(--text-main);
+    }
+
+    .header p {
+      font-size: 0.88rem;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    .input-box {
+      display: flex;
+      gap: 10px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius-md);
+      padding: 6px 6px 6px 14px;
+      margin-bottom: 1.5rem;
+    }
+
+    .input-box input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text-main);
+      font-size: 0.95rem;
+    }
+
+    .btn {
+      background: linear-gradient(135deg, var(--primary), var(--primary-hover));
+      color: white;
+      border: none;
+      padding: 10px 18px;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 0.9rem;
+      transition: all 0.2s ease;
+    }
+
+    .btn:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, var(--success), #059669);
+    }
+
+    .result-card {
+      background: rgba(15, 23, 42, 0.5);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius-md);
+      padding: 1.2rem;
+      margin-top: 1rem;
+    }
+
+    .result-title {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .url-display {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 10px;
+      border-radius: var(--radius-sm);
+      font-family: monospace;
+      font-size: 0.82rem;
+      color: #93C5FD;
+      word-break: break-all;
+      margin-bottom: 12px;
+      user-select: all;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .video-container {
+      margin-top: 15px;
+      width: 100%;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      background: black;
+      aspect-ratio: 16/9;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+    }
+
+    .hidden { display: none !important; }
+
+    .note-box {
+      margin-top: 1.5rem;
+      padding: 12px;
+      border-radius: var(--radius-sm);
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      color: #FCD34D;
+      font-size: 0.8rem;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="header">
+      <h1>Media Extractor & Player</h1>
+      <p>Estrattore e Player Standalone per flussi HLS, Vixcloud e Video Diretti (0 Backend)</p>
+    </div>
+
+    <div class="input-box">
+      <input type="text" id="urlInput" placeholder="Incolla link Vixcloud, StreamingCommunity, flussi .m3u8 o video..." autocomplete="off">
+      <button id="btnProcess" class="btn">Estrai Media</button>
+    </div>
+
+    <div id="resultCard" class="result-card hidden">
+      <div class="result-title" id="resTitle">Flusso Multimediale Rilevato</div>
+      <div class="url-display" id="resUrl">---</div>
+
+      <div class="actions">
+        <button id="btnCopy" class="btn btn-success">📋 Copia Link Stream</button>
+        <a id="btnDirectDownload" class="btn hidden" href="#" download target="_blank">💾 Scarica File</a>
+      </div>
+
+      <div id="videoBox" class="video-container hidden">
+        <video id="videoPlayer" controls></video>
+      </div>
+    </div>
+
+    <div class="note-box">
+      <strong>⚠️ Nota tecnica sui Browser:</strong><br>
+      I browser bloccano i download automatici diretti da siti di streaming protetti (CORS & Anti-Hotlinking).
+      Questo file HTML Standalone ti permette di <strong>estrarre e riprodurre il video nel browser</strong> oppure <strong>copiare l'URL del flusso</strong> per usarlo in app come VLC o Downloader gratuiti!
+    </div>
+  </div>
+
+  <script>
+    const urlInput = document.getElementById('urlInput');
+    const btnProcess = document.getElementById('btnProcess');
+    const resultCard = document.getElementById('resultCard');
+    const resTitle = document.getElementById('resTitle');
+    const resUrl = document.getElementById('resUrl');
+    const btnCopy = document.getElementById('btnCopy');
+    const btnDirectDownload = document.getElementById('btnDirectDownload');
+    const videoBox = document.getElementById('videoBox');
+    const videoPlayer = document.getElementById('videoPlayer');
+
+    let currentStreamUrl = "";
+    let hlsInstance = null;
+
+    btnProcess.addEventListener('click', processUrl);
+    urlInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') processUrl(); });
+
+    function processUrl() {
+      let rawUrl = urlInput.value.trim();
+      if (!rawUrl) return;
+
+      currentStreamUrl = rawUrl;
+      let isHls = false;
+      let isDirect = false;
+
+      // Parsing Vixcloud / HLS / Direct
+      if (rawUrl.includes('vixcloud.co') || rawUrl.includes('playlist')) {
+        isHls = true;
+        // Fix m3u8 extension in path if needed
+        try {
+          let u = new URL(rawUrl);
+          if (!u.pathname.endsWith('.m3u8')) {
+            u.pathname += '.m3u8';
+          }
+          currentStreamUrl = u.toString();
+        } catch(e) {}
+      } else if (rawUrl.endsWith('.m3u8') || rawUrl.includes('.m3u8')) {
+        isHls = true;
+      } else if (/\.(mp4|mp3|webm|mov|mkv)$/i.test(rawUrl)) {
+        isDirect = true;
+      }
+
+      resTitle.textContent = isHls ? "Flusso HLS Stream (.m3u8)" : (isDirect ? "File Mediale Diretto" : "Link Multimediale Estratto");
+      resUrl.textContent = currentStreamUrl;
+
+      if (isDirect) {
+        btnDirectDownload.href = currentStreamUrl;
+        btnDirectDownload.classList.remove('hidden');
+      } else {
+        btnDirectDownload.classList.add('hidden');
+      }
+
+      resultCard.classList.remove('hidden');
+
+      // Initialize Video Player
+      if (isHls) {
+        videoBox.classList.remove('hidden');
+        if (Hls.isSupported()) {
+          if (hlsInstance) hlsInstance.destroy();
+          hlsInstance = new Hls();
+          hlsInstance.loadSource(currentStreamUrl);
+          hlsInstance.attachMedia(videoPlayer);
+        } else if (videoPlayer.canPlayType('application/vnd.apple.mpegurl')) {
+          videoPlayer.src = currentStreamUrl;
+        }
+      } else if (isDirect) {
+        videoBox.classList.remove('hidden');
+        if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
+        videoPlayer.src = currentStreamUrl;
+      } else {
+        videoBox.classList.add('hidden');
+      }
+    }
+
+    btnCopy.addEventListener('click', () => {
+      if (!currentStreamUrl) return;
+      navigator.clipboard.writeText(currentStreamUrl).then(() => {
+        let orig = btnCopy.textContent;
+        btnCopy.textContent = "✓ Copiato negli Appunti!";
+        setTimeout(() => { btnCopy.textContent = orig; }, 2000);
+      });
+    });
+  </script>
+</body>
+</html>

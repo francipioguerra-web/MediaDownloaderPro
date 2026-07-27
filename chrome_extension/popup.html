@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MediaDownloader Pro</title>
+  <link rel="stylesheet" href="popup.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="extension-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-area">
+        <svg class="logo-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        <span class="logo-title">MediaDownloader <small>Pro</small></span>
+      </div>
+      <div id="serverStatusBadge" class="status-badge offline" title="Stato Server Locale (http://localhost:5050)">
+        <span class="status-dot"></span>
+        <span id="serverStatusText">Server Offline</span>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="app-body">
+      <!-- Loading State -->
+      <div id="loadingView" class="state-view">
+        <div class="spinner"></div>
+        <p class="loading-text">Analisi pagina e rilevamento video in corso...</p>
+      </div>
+
+      <!-- Result View -->
+      <div id="resultView" class="state-view hidden">
+        <!-- Media Info Card -->
+        <div class="media-card">
+          <div class="media-header">
+            <span id="mediaTypeBadge" class="badge badge-hls">HLS STREAM</span>
+            <span id="mediaSourceBadge" class="source-tag">Domain</span>
+          </div>
+
+          <h3 id="mediaTitle" class="media-title">Titolo del Video Rilevato</h3>
+          
+          <div class="media-details">
+            <span id="mediaSize" class="detail-item">Dimensione: N/D</span>
+            <span id="mediaDuration" class="detail-item">Durata: N/D</span>
+          </div>
+
+          <!-- URL Source Display -->
+          <div class="url-box">
+            <input type="text" id="targetUrlInput" readonly class="url-input" />
+            <button id="btnCopyUrl" class="btn-icon" title="Copia URL">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            </button>
+          </div>
+
+          <!-- Format Selector -->
+          <div class="form-group">
+            <label for="formatSelect" class="form-label">Qualità / Formato:</label>
+            <select id="formatSelect" class="form-select">
+              <option value="mp4" selected>Best Quality (MP4 Video)</option>
+              <option value="1080">Full HD (1080p)</option>
+              <option value="720">HD Ready (720p)</option>
+              <option value="480">Standard (480p)</option>
+              <option value="mp3">Solo Audio (MP3 192kbps)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Download Actions -->
+        <div class="action-buttons">
+          <button id="btnStartFastDownload" class="btn btn-primary">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            Scarica con MediaDownloader (Fast)
+          </button>
+
+          <button id="btnDirectBrowserDownload" class="btn btn-secondary">
+            Scarica con il Browser
+          </button>
+        </div>
+      </div>
+
+      <!-- No Media Found View -->
+      <div id="noMediaView" class="state-view hidden">
+        <div class="empty-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+        </div>
+        <h4>Nessun video rilevato</h4>
+        <p>Non è stato possibile rilevare automaticamente un file video nella scheda corrente.</p>
+        <button id="btnRetryScan" class="btn btn-outline">Rianalizza Pagina</button>
+      </div>
+
+      <!-- Active Progress Card -->
+      <div id="progressView" class="state-view hidden">
+        <div class="progress-card">
+          <div class="progress-header">
+            <span class="progress-title">Download in corso...</span>
+            <span id="progressPercent" class="progress-percent">0%</span>
+          </div>
+
+          <div class="progress-bar-bg">
+            <div id="progressBarFill" class="progress-bar-fill" style="width: 0%;"></div>
+          </div>
+
+          <div class="progress-stats">
+            <span id="progressDownloaded">0 MB</span>
+            <span id="progressSpeed">0 MB/s</span>
+          </div>
+
+          <div class="progress-controls">
+            <button id="btnPauseDl" class="btn btn-warning-sm">⏸ Pausa</button>
+            <button id="btnResumeDl" class="btn btn-success-sm hidden">▶ Riprendi</button>
+            <button id="btnCancelDl" class="btn btn-danger-sm">✖ Annulla</button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <a href="http://localhost:5050" target="_blank" class="footer-link">Apri Dashboard Web (localhost:5050)</a>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
