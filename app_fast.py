@@ -124,51 +124,73 @@ class MediaDownloaderAPI:
         if not parsed.scheme or not parsed.netloc:
             return {"error": "URL non valido. Assicurati che inizi con http:// o https://"}
 
-        if 'streamingcommunity' in url.lower() or 'vixcloud' in url.lower():
-            res_sc = self._resolve_streamingcommunity(url)
-            if res_sc and not res_sc.get('error'):
-                return res_sc
+        try:
+            import socket
+            socket.setdefaulttimeout(6)
+        except Exception:
+            pass
 
-        res_host = self._resolve_special_hosts(url)
-        if res_host and not res_host.get('error'):
-            return res_host
+        try:
+            if 'streamingcommunity' in url.lower() or 'vixcloud' in url.lower():
+                res_sc = self._resolve_streamingcommunity(url)
+                if res_sc and not res_sc.get('error'):
+                    return res_sc
 
-        path_lower = parsed.path.lower()
+            res_host = self._resolve_special_hosts(url)
+            if res_host and not res_host.get('error'):
+                return res_host
 
-        if path_lower.endswith('.m3u8') or '.m3u8' in url:
-            return {
-                "type": "hls",
-                "title": f"Flusso HLS Stream ({parsed.netloc})",
-                "url": url,
-                "thumbnail": None,
-                "file_size": "Stream HLS (.m3u8)",
-                "source": parsed.netloc,
-                "duration": "HLS Playlist",
-                "headers": self._browser_headers
-            }
+            path_lower = parsed.path.lower()
 
-        direct_extensions = ('.mp4', '.mp3', '.mov', '.mkv', '.avi', '.webm', '.flv',
-                             '.m4a', '.wav', '.flac', '.jpg', '.jpeg', '.png', '.gif',
-                             '.webp', '.svg', '.pdf', '.zip', '.tar', '.gz')
-        
-        if any(path_lower.endswith(ext) for ext in direct_extensions):
-            return self._analyze_direct_link(url)
+            if path_lower.endswith('.m3u8') or '.m3u8' in url:
+                return {
+                    "type": "hls",
+                    "title": f"Flusso HLS Stream ({parsed.netloc})",
+                    "url": url,
+                    "thumbnail": None,
+                    "file_size": "Stream HLS (.m3u8)",
+                    "source": parsed.netloc,
+                    "duration": "HLS Playlist",
+                    "headers": self._browser_headers
+                }
 
-        m3u8_found = self._scan_page_for_hls(url)
-        if m3u8_found:
-            page_title = m3u8_found.get('title') or f"Video Stream ({parsed.netloc})"
-            return {
-                "type": "hls",
-                "title": page_title,
-                "url": m3u8_found['m3u8_url'],
-                "thumbnail": m3u8_found.get('thumbnail'),
-                "file_size": "Stream HLS Rilevato",
-                "source": parsed.netloc,
-                "duration": "Playlist .m3u8",
-                "headers": m3u8_found.get('headers')
-            }
+            direct_extensions = ('.mp4', '.mp3', '.mov', '.mkv', '.avi', '.webm', '.flv',
+                                 '.m4a', '.wav', '.flac', '.jpg', '.jpeg', '.png', '.gif',
+                                 '.webp', '.svg', '.pdf', '.zip', '.tar', '.gz')
+            
+            if any(path_lower.endswith(ext) for ext in direct_extensions):
+                return self._analyze_direct_link(url)
 
-        return self._analyze_stream_link(url)
+            m3u8_found = self._scan_page_for_hls(url)
+            if m3u8_found:
+                page_title = m3u8_found.get('title') or f"Video Stream ({parsed.netloc})"
+                return {
+                    "type": "hls",
+                    "title": page_title,
+                    "url": m3u8_found['m3u8_url'],
+                    "thumbnail": m3u8_found.get('thumbnail'),
+                    "file_size": "Stream HLS Rilevato",
+                    "source": parsed.netloc,
+                    "duration": "Playlist .m3u8",
+                    "headers": m3u8_found.get('headers')
+                }
+
+            res_stream = self._analyze_stream_link(url)
+            if res_stream and not res_stream.get('error'):
+                return res_stream
+        except Exception as ex:
+            print("Fast fallback analysis trigger:", ex)
+
+        return {
+            "type": "hls" if (".m3u8" in url.lower() or "streamingcommunity" in url.lower() or "vixcloud" in url.lower()) else "stream",
+            "title": f"Video Stream ({parsed.netloc})",
+            "url": url,
+            "thumbnail": None,
+            "file_size": "Contenuto Rilevato",
+            "source": parsed.netloc,
+            "duration": "N/D",
+            "headers": self._browser_headers
+        }
 
     def _resolve_special_hosts(self, url):
         url_lower = url.lower()
