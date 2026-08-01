@@ -491,8 +491,25 @@ async function startBrowserDownload() {
     activeBrowserHLSInstance = new window.InBrowserHLSDownloader();
 
     const headers = {};
-    if (currentActiveTab && currentActiveTab.url) {
-      headers['Referer'] = currentActiveTab.url;
+    let refererUrl = currentActiveTab ? currentActiveTab.url : null;
+
+    if (targetUrl.includes('vixcloud.co')) {
+      const embedIdMatch = targetUrl.match(/\/(?:playlist|embed|iframe)\/(\d+)/);
+      const embedId = embedIdMatch ? embedIdMatch[1] : "";
+      refererUrl = embedId ? `https://vixcloud.co/embed/${embedId}` : "https://vixcloud.co/";
+    }
+
+    if (refererUrl) {
+      headers['Referer'] = refererUrl;
+      try {
+        await new Promise((resolve) => {
+          chrome.runtime.sendMessage({
+            action: "SET_HEADER_RULES",
+            referer: refererUrl,
+            origin: "https://vixcloud.co"
+          }, () => resolve());
+        });
+      } catch (e) {}
     }
 
     try {

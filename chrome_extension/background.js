@@ -80,12 +80,43 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   delete tabMediaMap[tabId];
 });
 
-// Handle incoming runtime messages
+// Setup declarativeNetRequest rules for bypassing Referer/Origin checks
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "GET_SNIFFED_MEDIA") {
     const tabId = request.tabId;
     const items = tabMediaMap[tabId] || [];
     sendResponse({ success: true, media: items });
+  } else if (request.action === "SET_HEADER_RULES") {
+    const referer = request.referer;
+    const origin = request.origin || "https://vixcloud.co";
+    
+    if (chrome.declarativeNetRequest) {
+      const rule = {
+        id: 1,
+        priority: 1,
+        action: {
+          type: 'modifyHeaders',
+          requestHeaders: [
+            { header: 'Referer', operation: 'set', value: referer },
+            { header: 'Origin', operation: 'set', value: origin }
+          ]
+        },
+        condition: {
+          urlFilter: 'vixcloud.co',
+          resourceTypes: ['xmlhttprequest', 'media', 'other']
+        }
+      };
+
+      chrome.declarativeNetRequest.updateDynamicRules({
+        removeRuleIds: [1],
+        addRules: [rule]
+      }, () => {
+        sendResponse({ success: !chrome.runtime.lastError });
+      });
+      return true;
+    } else {
+      sendResponse({ success: false });
+    }
   } else if (request.action === "START_BROWSER_DOWNLOAD") {
     chrome.downloads.download({
       url: request.url,
