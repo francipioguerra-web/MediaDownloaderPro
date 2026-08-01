@@ -92,6 +92,25 @@ class MediaDownloaderAPI:
             pass
         return ""
 
+    def get_pending_url(self):
+        temp_file = "/tmp/mediadownloader_last_url.txt"
+        if os.path.exists(temp_file):
+            try:
+                with open(temp_file, "r", encoding="utf-8") as f:
+                    url = f.read().strip()
+                try: os.remove(temp_file)
+                except: pass
+                if url.startswith("http://") or url.startswith("https://"):
+                    return url
+            except Exception:
+                pass
+        
+        for arg in sys.argv[1:]:
+            if arg.startswith("http://") or arg.startswith("https://"):
+                return arg
+
+        return self.read_clipboard()
+
     def analyze_url(self, url):
         url = url.strip()
         if not url:
