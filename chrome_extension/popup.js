@@ -208,14 +208,13 @@ async function openAndSendToMacApp() {
     } catch (e) {}
   }
 
-  // D. Open macOS app custom protocol handler as fallback
+  // D. Open macOS app custom protocol handler (mediadownloader://)
   try {
     const customSchemeUrl = `mediadownloader://download?url=${encodeURIComponent(targetUrl)}`;
-    chrome.tabs.create({ url: customSchemeUrl, active: false }, (tab) => {
-      setTimeout(() => {
-        if (tab && tab.id) chrome.tabs.remove(tab.id);
-      }, 1000);
-    });
+    window.location.href = customSchemeUrl;
+    if (currentActiveTab && currentActiveTab.id) {
+      chrome.tabs.update(currentActiveTab.id, { url: customSchemeUrl });
+    }
   } catch (e) {}
 
   alert("🚀 Applicazione MediaDownloader in avvio sul tuo Mac!\n\nIl link del video è stato inviato all'app e copiato negli appunti.");
