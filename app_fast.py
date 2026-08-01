@@ -874,6 +874,34 @@ class MediaDownloaderAPI:
             if "DOWNLOAD_CANCELLED" in str(ex) or self._download_states.get(download_id) == 'cancelled':
                 self._notify_state_change(download_id, 'cancelled')
             else:
+                # Direct FFmpeg fallback for HLS streams (.m3u8, Vixcloud, StreamingCommunity)
+                if (".m3u8" in url.lower() or "vixcloud" in url.lower() or "streamingcommunity" in url.lower()):
+                    try:
+                        title_name = custom_title or "video_download"
+                        safe_title = re.sub(r'[\\/*?:"<>|]', "", title_name).strip()
+                        target_filepath = os.path.join(output_dir, f"{safe_title}.mp4")
+
+                        ref_hdr = headers_to_use.get('Referer', 'https://vixcloud.co/')
+                        ua_hdr = headers_to_use.get('User-Agent', self._browser_headers['User-Agent'])
+
+                        ff_cmd = [
+                            'ffmpeg', '-y',
+                            '-headers', f'User-Agent: {ua_hdr}\r\nReferer: {ref_hdr}\r\n',
+                            '-i', url,
+                            '-c', 'copy',
+                            target_filepath
+                        ]
+
+                        proc = subprocess.Popen(ff_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                        proc.wait()
+
+                        if os.path.exists(target_filepath) and os.path.getsize(target_filepath) > 100000:
+                            self._notify_progress(download_id, 100.0, 0, os.path.getsize(target_filepath), os.path.getsize(target_filepath), force=True)
+                            self._notify_complete(download_id, target_filepath, os.path.basename(target_filepath))
+                            return
+                    except Exception as ff_ex:
+                        print("FFmpeg direct fallback error:", ff_ex)
+
                 self._notify_error(download_id, str(ex))
 
     def _notify_progress(self, download_id, percent, speed_bytes, downloaded_bytes, total_bytes, force=False):
