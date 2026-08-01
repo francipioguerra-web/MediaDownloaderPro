@@ -106,10 +106,14 @@ class MediaDownloaderAPI:
                 pass
         
         for arg in sys.argv[1:]:
-            if arg.startswith("http://") or arg.startswith("https://"):
+            if "mediadownloader://" in arg:
+                match = re.search(r'url=([^&]+)', arg)
+                if match:
+                    return urllib.parse.unquote(match.group(1))
+            elif arg.startswith("http://") or arg.startswith("https://"):
                 return arg
 
-        return self.read_clipboard()
+        return ""
 
     def analyze_url(self, url):
         url = url.strip()
