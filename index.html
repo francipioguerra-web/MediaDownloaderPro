@@ -90,29 +90,14 @@
             <p id="preview-url" class="preview-url">https://example.com/video</p>
 
             <div class="download-options">
-              <label class="option-title">Seleziona Qualità e Formato:</label>
-              <div class="format-chips">
-                <label class="chip active">
-                  <input type="radio" name="format" value="1080" checked>
-                  <span>⭐ 1080p (Full HD)</span>
-                </label>
-                <label class="chip">
-                  <input type="radio" name="format" value="720">
-                  <span>🎬 720p (HD)</span>
-                </label>
-                <label class="chip">
-                  <input type="radio" name="format" value="480">
-                  <span>📱 480p (SD)</span>
-                </label>
-                <label class="chip">
-                  <input type="radio" name="format" value="best">
-                  <span>⚡ Max Qualità</span>
-                </label>
-                <label class="chip">
-                  <input type="radio" name="format" value="mp3">
-                  <span>🎵 Solo Audio (MP3)</span>
-                </label>
-              </div>
+              <label for="quality-select" class="option-title">Seleziona Qualità e Formato Video:</label>
+              <select id="quality-select" class="quality-dropdown">
+                <option value="1080" selected>⭐ 1080p (Full HD)</option>
+                <option value="720">🎬 720p (HD)</option>
+                <option value="480">📱 480p (SD)</option>
+                <option value="best">⚡ Massima Qualità Disponibile</option>
+                <option value="mp3">🎵 Solo Audio MP3</option>
+              </select>
             </div>
 
             <div class="preview-actions">

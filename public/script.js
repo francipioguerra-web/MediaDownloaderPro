@@ -62,8 +62,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Auto-paste and analyze on window focus
+  // Auto-paste and analyze on window focus and fast polling
   window.addEventListener('focus', checkAndAutoAnalyzePendingUrl);
+  setInterval(checkAndAutoAnalyzePendingUrl, 800);
 
   // Chip selection
   chips.forEach(chip => {
@@ -221,8 +222,8 @@ document.addEventListener('DOMContentLoaded', () => {
   btnDownloadNow.addEventListener('click', () => {
     if (!currentAnalysis) return;
 
-    const selectedChip = document.querySelector('input[name="format"]:checked');
-    const formatChoice = selectedChip ? selectedChip.value : 'mp4';
+    const qualitySelect = document.getElementById('quality-select');
+    const formatChoice = qualitySelect ? qualitySelect.value : '1080';
 
     const url = currentAnalysis.url;
     const mediaType = currentAnalysis.type;
