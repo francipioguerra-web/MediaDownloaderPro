@@ -352,10 +352,49 @@ class MediaDownloaderAPI:
             }
 
         try:
+            match_id = re.search(r'/(?:watch|titles)/(\d+)', url)
+            title_id_ext = match_id.group(1) if match_id else None
+
+            parsed_input = urllib.parse.urlparse(url)
+            query_params = urllib.parse.parse_qs(parsed_input.query)
+
+            req_ep_id = None
+            if 'e' in query_params:
+                req_ep_id = query_params['e'][0]
+            elif 'episode' in query_params:
+                req_ep_id = query_params['episode'][0]
+
+            req_season_num = int(query_params.get('s', ['0'])[0]) if 's' in query_params else None
+            req_ep_num = int(query_params.get('ep', ['0'])[0]) if 'ep' in query_params else None
+
             session = requests.Session()
             session.headers.update(self._browser_headers)
 
-            res1 = session.get(url, timeout=6)
+            domains = [
+                f"{parsed_input.scheme}://{parsed_input.netloc}" if parsed_input.netloc else None,
+                "https://streamingcommunity.computer",
+                "https://streamingcommunityz.support"
+            ]
+            domains = [d for d in domains if d]
+
+            res1 = None
+            working_url = url
+            for d in domains:
+                try:
+                    test_url = f"{d}/it/watch/{title_id_ext}" if title_id_ext else url
+                    if req_ep_id:
+                        test_url += f"?e={req_ep_id}"
+                    r = session.get(test_url, timeout=5, allow_redirects=True)
+                    if r.status_code == 200 and ('data-page' in r.text or 'inertia' in r.text):
+                        res1 = r
+                        working_url = test_url
+                        break
+                except Exception:
+                    continue
+
+            if not res1:
+                res1 = session.get(url, timeout=5, allow_redirects=True)
+
             if res1.status_code != 200:
                 return None
 
@@ -374,22 +413,9 @@ class MediaDownloaderAPI:
             media_info = props.get('title') or props.get('media') or props.get('loadedTitle') or {}
             title_name = media_info.get('name') or media_info.get('title') or 'Film/Serie Streaming'
 
-            # Parse requested episode ID or season/ep numbers from query parameters
-            parsed_input = urllib.parse.urlparse(url)
-            query_params = urllib.parse.parse_qs(parsed_input.query)
-
-            req_ep_id = None
-            if 'e' in query_params:
-                req_ep_id = query_params['e'][0]
-            elif 'episode' in query_params:
-                req_ep_id = query_params['episode'][0]
-
-            req_season_num = int(query_params.get('s', ['0'])[0]) if 's' in query_params else None
-            req_ep_num = int(query_params.get('ep', ['0'])[0]) if 'ep' in query_params else None
-
             if not embed_url and 'loadedTitle' in props:
                 loaded = props['loadedTitle']
-                title_id = loaded.get('id')
+                title_id = loaded.get('id') or title_id_ext
                 seasons = loaded.get('seasons', [])
                 
                 selected_ep = None
