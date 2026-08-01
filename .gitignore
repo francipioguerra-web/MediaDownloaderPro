@@ -4,3 +4,7 @@ downloads/
 .venv/
 __pycache__/
 *.log
+android_project/.gradle/
+android_project/app/build/
+build/
+dist/
