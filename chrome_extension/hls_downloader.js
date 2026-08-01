@@ -6,8 +6,20 @@ class InBrowserHLSDownloader {
     this.isCancelled = false;
   }
 
+  buildHeaders(url, customHeaders = {}) {
+    const headers = { ...customHeaders };
+    if (url.includes('vixcloud.co')) {
+      const embedIdMatch = url.match(/\/(?:playlist|embed|iframe)\/(\d+)/);
+      const embedId = embedIdMatch ? embedIdMatch[1] : "";
+      headers['Referer'] = embedId ? `https://vixcloud.co/embed/${embedId}` : "https://vixcloud.co/";
+      headers['Origin'] = "https://vixcloud.co";
+    }
+    return headers;
+  }
+
   async parseM3U8(m3u8Url, customHeaders = {}) {
-    const fetchOptions = { headers: customHeaders, credentials: 'include' };
+    const reqHeaders = this.buildHeaders(m3u8Url, customHeaders);
+    const fetchOptions = { headers: reqHeaders, credentials: 'include' };
     const res = await fetch(m3u8Url, fetchOptions);
     if (!res.ok) throw new Error(`Errore HTTP ${res.status} durante il recupero della playlist M3U8`);
     const text = await res.text();
@@ -42,7 +54,8 @@ class InBrowserHLSDownloader {
 
       if (bestSubUri) {
         playlistUrl = new URL(bestSubUri, m3u8Url).href;
-        const subRes = await fetch(playlistUrl, fetchOptions);
+        const subHeaders = this.buildHeaders(playlistUrl, customHeaders);
+        const subRes = await fetch(playlistUrl, { headers: subHeaders, credentials: 'include' });
         if (subRes.ok) {
           m3u8Text = await subRes.text();
         }
@@ -97,7 +110,8 @@ class InBrowserHLSDownloader {
   }
 
   async fetchEncryptionKey(keyUri, customHeaders = {}) {
-    const res = await fetch(keyUri, { headers: customHeaders, credentials: 'include' });
+    const reqHeaders = this.buildHeaders(keyUri, customHeaders);
+    const res = await fetch(keyUri, { headers: reqHeaders, credentials: 'include' });
     if (!res.ok) throw new Error(`Errore HTTP ${res.status} nel recupero della chiave AES-128`);
     const keyArrayBuffer = await res.arrayBuffer();
     return await crypto.subtle.importKey(
@@ -152,7 +166,8 @@ class InBrowserHLSDownloader {
         }
 
         try {
-          const res = await fetch(url, { headers: customHeaders, credentials: 'include' });
+          const segHeaders = this.buildHeaders(url, customHeaders);
+          const res = await fetch(url, { headers: segHeaders, credentials: 'include' });
           if (!res.ok) throw new Error(`Status HTTP ${res.status}`);
           let buffer = await res.arrayBuffer();
 
