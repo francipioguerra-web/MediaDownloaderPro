@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentFolder = "~/Downloads";
   let activeDownloads = {};
   let lastProcessedUrl = "";
+  let historyData = [];
 
   function checkAndAutoAnalyzePendingUrl() {
     if (window.pywebview && window.pywebview.api) {
