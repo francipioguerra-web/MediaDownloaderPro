@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Media Downloader PRO (Android)</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <div class="logo-badge">
+        <svg class="badge-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        <span class="badge-text">ANDROID EDITION</span>
+      </div>
+      <h1 class="app-title">Media Downloader PRO</h1>
+      <p class="app-subtitle">Scarica video e flussi audio direttamente sul tuo dispositivo</p>
+      <div style="margin-top: 8px;">
+        <input type="text" id="server-url-input" class="url-input" placeholder="IP Server facoltativo (es. http://192.168.1.15:5050)" style="font-size: 0.75rem; padding: 6px 10px;">
+      </div>
+    </header>
+
+    <main class="main-content">
+      <section class="card input-card">
+        <div class="input-group">
+          <div class="input-wrapper">
+            <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+            </svg>
+            <input type="url" id="url-input" class="url-input" placeholder="Incolla l'URL del video o stream..." autocomplete="off">
+          </div>
+          <button id="btn-paste" class="btn-paste">Incolla</button>
+        </div>
+        <button id="btn-analyze" class="btn-primary">
+          <span id="analyze-spinner" class="spinner" style="display: none;"></span>
+          <span id="analyze-text">Analizza Link</span>
+        </button>
+      </section>
+
+      <div id="alert-banner" class="alert-banner" style="display: none;"></div>
+
+      <section id="preview-section" class="card preview-card" style="display: none;">
+        <div class="preview-media-container">
+          <img id="preview-img" class="preview-img" src="" alt="Anteprima Media" style="display: none;">
+          <div id="preview-fallback-icon" class="preview-fallback-icon">
+            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+              <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
+              <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
+            </svg>
+          </div>
+        </div>
+
+        <div class="preview-info">
+          <div class="preview-tags">
+            <span id="preview-source" class="tag">Web</span>
+            <span id="preview-duration" class="tag">00:00</span>
+            <span id="preview-size" class="tag">-- MB</span>
+          </div>
+          <h3 id="preview-title" class="preview-title">Titolo Media</h3>
+          <p id="preview-url" class="preview-url">https://example.com/video</p>
+
+          <div class="download-options">
+            <label class="option-title">Seleziona Qualità e Formato:</label>
+            <div class="format-chips">
+              <label class="chip active">
+                <input type="radio" name="format" value="1080" checked>
+                <span>⭐ 1080p (Full HD)</span>
+              </label>
+              <label class="chip">
+                <input type="radio" name="format" value="720">
+                <span>🎬 720p (HD)</span>
+              </label>
+              <label class="chip">
+                <input type="radio" name="format" value="480">
+                <span>📱 480p (SD)</span>
+              </label>
+              <label class="chip">
+                <input type="radio" name="format" value="best">
+                <span>⚡ Max Qualità</span>
+              </label>
+              <label class="chip">
+                <input type="radio" name="format" value="mp3">
+                <span>🎵 Solo Audio (MP3)</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="action-buttons" style="margin-top: 10px;">
+            <button id="btn-download-now" class="btn-primary" style="flex: 2;">Scarica su Android</button>
+            <button id="btn-copy-link" class="btn-secondary">Copia Link</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card history-section">
+        <h3 class="section-title">Cronologia Link <span id="history-count">(0)</span></h3>
+        <p id="history-empty" class="empty-state">Nessun link salvato di recente.</p>
+        <div id="history-list" class="history-list" style="display: none;"></div>
+      </section>
+    </main>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>

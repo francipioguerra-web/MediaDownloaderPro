@@ -1,0 +1,19 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.mediadownloader.app-mergeDebugResources-30:/values-port/values-port.xml",
+            "map": [
+                {
+                    "source": "/Users/amministratore/.gradle/caches/9.6.0/transforms/bd771deb079e8481f0610348252507bf/transformed/appcompat-1.7.0/res/values-port/values-port.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endColumns": "55",
+                        "endOffsets": "106"
+                    }
+                }
+            ]
+        }
+    ]
+}

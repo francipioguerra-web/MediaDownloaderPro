@@ -1,0 +1,10 @@
+#Mon Jul 27 18:00:49 CEST 2026
+base.0=/Users/amministratore/Desktop/MediaDownloader/android_project/app/build/intermediates/dex/debug/mergeExtDexDebug/classes.dex
+base.1=/Users/amministratore/Desktop/MediaDownloader/android_project/app/build/intermediates/dex/debug/mergeProjectDexDebug/0/classes.dex
+base.2=/Users/amministratore/Desktop/MediaDownloader/android_project/app/build/intermediates/dex/debug/mergeProjectDexDebug/6/classes.dex
+path.0=classes.dex
+path.1=0/classes.dex
+path.2=6/classes.dex
+renamed.0=classes.dex
+renamed.1=classes2.dex
+renamed.2=classes3.dex
