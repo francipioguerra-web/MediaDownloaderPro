@@ -783,12 +783,29 @@ class MediaDownloaderServer:
         else:
             ydl_opts['concurrent_fragment_downloads'] = 4
 
-        if 'Referer' in headers_to_use:
-            ydl_opts['referer'] = headers_to_use['Referer']
-        if 'User-Agent' in headers_to_use:
-            ydl_opts['user_agent'] = headers_to_use['User-Agent']
+        cookie_filepath = None
         if 'Cookie' in headers_to_use:
-            ydl_opts['cookie'] = headers_to_use['Cookie']
+            cookie_str = headers_to_use.pop('Cookie')
+            try:
+                import tempfile
+                parsed_u = urllib.parse.urlparse(url)
+                domain = parsed_u.netloc or '.vixcloud.co'
+                if not domain.startswith('.'):
+                    domain = '.' + domain
+                
+                temp_c = tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.txt')
+                temp_c.write('# Netscape HTTP Cookie File\n')
+                for item in cookie_str.split(';'):
+                    if '=' in item:
+                        k, v = item.strip().split('=', 1)
+                        temp_c.write(f'{domain}\tTRUE\t/\tFALSE\t2147483647\t{k}\t{v}\n')
+                temp_c.close()
+                cookie_filepath = temp_c.name
+            except Exception:
+                pass
+
+        if cookie_filepath and os.path.exists(cookie_filepath):
+            ydl_opts['cookiefile'] = cookie_filepath
 
         if ffmpeg_path:
             ydl_opts['ffmpeg_location'] = ffmpeg_path
@@ -814,23 +831,28 @@ class MediaDownloaderServer:
                 'merge_output_format': 'mp4'
             })
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            prep_filename = ydl.prepare_filename(info)
-            filename = os.path.basename(prep_filename)
-            full_path = os.path.join(DOWNLOADS_DIR, filename)
-            if not os.path.exists(full_path) or os.path.getsize(full_path) < 1000:
-                if os.path.exists(full_path):
-                    try: os.remove(full_path)
-                    except: pass
-                raise Exception("Il file scaricato tramite motore stream è vuoto o incompleto.")
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
+                prep_filename = ydl.prepare_filename(info)
+                filename = os.path.basename(prep_filename)
+                full_path = os.path.join(DOWNLOADS_DIR, filename)
+                if not os.path.exists(full_path) or os.path.getsize(full_path) < 1000:
+                    if os.path.exists(full_path):
+                        try: os.remove(full_path)
+                        except: pass
+                    raise Exception("Il file scaricato tramite motore stream è vuoto o incompleto.")
 
-            self._downloads[download_id].update({
-                "state": "completed",
-                "percent": 100.0,
-                "filename": filename,
-                "download_url": f"/api/download/file/{urllib.parse.quote(filename)}"
-            })
+                self._downloads[download_id].update({
+                    "state": "completed",
+                    "percent": 100.0,
+                    "filename": filename,
+                    "download_url": f"/api/download/file/{urllib.parse.quote(filename)}"
+                })
+        finally:
+            if cookie_filepath and os.path.exists(cookie_filepath):
+                try: os.remove(cookie_filepath)
+                except: pass
 
     def get_active_downloads(self):
         active = []
