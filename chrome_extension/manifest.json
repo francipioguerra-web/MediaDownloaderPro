@@ -9,6 +9,7 @@
     "storage",
     "webRequest",
     "declarativeNetRequest",
+    "nativeMessaging",
     "downloads",
     "cookies"
   ],

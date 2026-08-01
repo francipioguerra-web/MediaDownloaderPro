@@ -185,7 +185,16 @@ async function openAndSendToMacApp() {
   // A. Copy URL to clipboard for instant pasting
   navigator.clipboard.writeText(targetUrl);
 
-  // B. Send POST to local Mac app server if online
+  // B. Try Chrome Native Messaging Host to launch /Applications/MediaDownloader.app
+  try {
+    chrome.runtime.sendNativeMessage("com.mediadownloader.mac", { url: targetUrl }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.warn("Native Messaging:", chrome.runtime.lastError.message);
+      }
+    });
+  } catch (e) {}
+
+  // C. Send POST to local Mac app server if online
   if (isServerOnline) {
     try {
       await fetch(`${LOCAL_SERVER_URL}/api/download/start`, {
@@ -199,7 +208,7 @@ async function openAndSendToMacApp() {
     } catch (e) {}
   }
 
-  // C. Open macOS app custom protocol handler
+  // D. Open macOS app custom protocol handler as fallback
   try {
     const customSchemeUrl = `mediadownloader://download?url=${encodeURIComponent(targetUrl)}`;
     chrome.tabs.create({ url: customSchemeUrl, active: false }, (tab) => {
@@ -209,7 +218,7 @@ async function openAndSendToMacApp() {
     });
   } catch (e) {}
 
-  alert("🚀 Link inviato all'applicazione MediaDownloader sul tuo Mac!\n\nSe l'app non si apre in automatico, il link è stato anche copiato negli appunti per incollarlo nell'app.");
+  alert("🚀 Applicazione MediaDownloader in avvio sul tuo Mac!\n\nIl link del video è stato inviato all'app e copiato negli appunti.");
 }
 
 function showView(viewId) {
