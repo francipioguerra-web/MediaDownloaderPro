@@ -13,8 +13,8 @@ if [ -n "$TARGET_URL" ]; then
     echo -n "$TARGET_URL" | pbcopy
 fi
 
-# Launch Mac Desktop Application with arguments
-open -a /Applications/MediaDownloader.app --args "$TARGET_URL"
+# Launch live python desktop app with latest code and parameters
+python3 /Users/amministratore/Desktop/MediaDownloader/app_fast.py "$TARGET_URL" >/dev/null 2>&1 &
 
 RESPONSE='{"status":"ok","launched":true}'
 LEN=${#RESPONSE}
