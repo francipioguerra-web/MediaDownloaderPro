@@ -618,7 +618,7 @@ class MediaDownloaderAPI:
         return {"download_id": download_id, "status": "started"}
 
     def _run_download(self, download_id, url, media_type, format_choice, output_dir, custom_title=None, custom_headers=None):
-        if media_type == "direct":
+        if media_type == "direct" and not ('streamingcommunity' in url.lower() or 'vixcloud' in url.lower()):
             self._download_direct_file(download_id, url, output_dir)
         else:
             self._download_stream_yt(download_id, url, format_choice, output_dir, custom_title, custom_headers)
