@@ -374,15 +374,56 @@ class MediaDownloaderAPI:
             media_info = props.get('title') or props.get('media') or props.get('loadedTitle') or {}
             title_name = media_info.get('name') or media_info.get('title') or 'Film/Serie Streaming'
 
+            # Parse requested episode ID or season/ep numbers from query parameters
+            parsed_input = urllib.parse.urlparse(url)
+            query_params = urllib.parse.parse_qs(parsed_input.query)
+
+            req_ep_id = None
+            if 'e' in query_params:
+                req_ep_id = query_params['e'][0]
+            elif 'episode' in query_params:
+                req_ep_id = query_params['episode'][0]
+
+            req_season_num = int(query_params.get('s', ['0'])[0]) if 's' in query_params else None
+            req_ep_num = int(query_params.get('ep', ['0'])[0]) if 'ep' in query_params else None
+
             if not embed_url and 'loadedTitle' in props:
                 loaded = props['loadedTitle']
+                title_id = loaded.get('id')
                 seasons = loaded.get('seasons', [])
-                if seasons:
-                    episodes = seasons[0].get('episodes', [])
-                    if episodes:
-                        ep_id = episodes[0].get('id')
-                        title_id = loaded.get('id')
-                        embed_url = f"https://streamingcommunity.computer/iframe/{title_id}?episode={ep_id}"
+                
+                selected_ep = None
+                
+                # 1. Match by explicit episode ID
+                if req_ep_id:
+                    for s in seasons:
+                        for ep in s.get('episodes', []):
+                            if str(ep.get('id')) == str(req_ep_id) or str(ep.get('number')) == str(req_ep_id):
+                                selected_ep = ep
+                                break
+                        if selected_ep: break
+
+                # 2. Match by season & episode number
+                if not selected_ep and req_season_num and req_ep_num:
+                    for s in seasons:
+                        if s.get('number') == req_season_num:
+                            for ep in s.get('episodes', []):
+                                if ep.get('number') == req_ep_num:
+                                    selected_ep = ep
+                                    break
+                            if selected_ep: break
+
+                # 3. Fallback to first episode if no match
+                if not selected_ep and seasons and seasons[0].get('episodes'):
+                    selected_ep = seasons[0]['episodes'][0]
+
+                if selected_ep:
+                    ep_id = selected_ep.get('id')
+                    ep_num = selected_ep.get('number')
+                    s_num = selected_ep.get('season_number', 1)
+                    ep_name = selected_ep.get('name', '')
+                    title_name = f"{title_name} - S{s_num}E{ep_num} {ep_name}".strip()
+                    embed_url = f"https://streamingcommunity.computer/iframe/{title_id}?episode={ep_id}"
 
             if not embed_url:
                 return None
