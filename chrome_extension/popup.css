@@ -109,6 +109,29 @@ body {
   border: 1px solid rgba(239, 68, 68, 0.2);
 }
 
+/* Server Selector Bar */
+.server-selector-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background-color: rgba(15, 23, 42, 0.9);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.server-mode-select {
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-main);
+  padding: 4px 8px;
+  font-size: 11px;
+  outline: none;
+  cursor: pointer;
+}
+
 /* Body */
 .app-body {
   padding: 16px;

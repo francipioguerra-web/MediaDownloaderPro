@@ -7,10 +7,19 @@ import uuid
 import shutil
 import urllib.parse
 import threading
+import subprocess
+import concurrent.futures
 import requests
 import html as html_module
 import yt_dlp
 from flask import Flask, render_template, request, jsonify, send_from_directory
+
+try:
+    from curl_cffi import requests as cffi_requests
+    HAS_CURL_CFFI = True
+except BaseException:
+    cffi_requests = None
+    HAS_CURL_CFFI = False
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 
@@ -210,11 +219,10 @@ class MediaDownloaderServer:
             embed_id = embed_id_match.group(1) if embed_id_match else ""
             referer_header = f"https://vixcloud.co/embed/{embed_id}" if embed_id else "https://vixcloud.co/"
             
-            full_m3u8 = url
-            if 'playlist' in url and '.m3u8' not in parsed_v.path:
-                if not parsed_v.path.endswith('.m3u8'):
-                    new_path = parsed_v.path + '.m3u8'
-                    full_m3u8 = urllib.parse.urlunparse((parsed_v.scheme, parsed_v.netloc, new_path, parsed_v.params, parsed_v.query, parsed_v.fragment))
+            new_path = parsed_v.path.replace('/embed/', '/playlist/').replace('/iframe/', '/playlist/')
+            if not new_path.endswith('.m3u8'):
+                new_path = new_path + '.m3u8'
+            full_m3u8 = urllib.parse.urlunparse((parsed_v.scheme, parsed_v.netloc, new_path, parsed_v.params, parsed_v.query, parsed_v.fragment))
 
             return {
                 "type": "hls",
@@ -232,95 +240,105 @@ class MediaDownloaderServer:
             }
 
         try:
-            session = requests.Session()
+            if HAS_CURL_CFFI:
+                session = cffi_requests.Session(impersonate="chrome")
+            else:
+                session = requests.Session()
             session.headers.update(self._browser_headers)
 
-            res1 = session.get(url, timeout=6)
+            res1 = session.get(url, timeout=8)
             if res1.status_code != 200:
                 return None
 
-            inertia_match = re.search(r'data-page=\"(.*?)\"', res1.text)
-            if not inertia_match:
-                inertia_match = re.search(r"data-page='(.*?)'", res1.text)
+            html_text = res1.text
 
-            if not inertia_match:
-                return None
+            # Check if this is an iframe URL directly or contains inner iframe
+            iframe_match = re.search(r'<iframe[^>]+src=\"(.*?)\"', html_text) or re.search(r"<iframe[^>]+src='(.*?)'", html_text)
+            if iframe_match:
+                iframe_src = html_module.unescape(iframe_match.group(1))
+                if not iframe_src.startswith('http'):
+                    iframe_src = urllib.parse.urljoin(url, iframe_src)
+                if 'vixcloud.co' in iframe_src.lower():
+                    return self._resolve_streamingcommunity(iframe_src)
+                session.headers['Referer'] = url
+                res_sub = session.get(iframe_src, timeout=6)
+                if res_sub.status_code == 200:
+                    html_text = res_sub.text
 
-            data_json = html_module.unescape(inertia_match.group(1))
-            data = json.loads(data_json)
-            props = data.get('props', {})
+            token_match = re.search(r"'token':\s*'([^']+)'", html_text) or re.search(r'token\s*=\s*["\']([^"\']+)["\']', html_text)
+            expires_match = re.search(r"'expires':\s*'([^']+)'", html_text) or re.search(r'expires\s*=\s*["\']([^"\']+)["\']', html_text)
+            playlist_match = re.search(r"url:\s*'([^']+)'", html_text) or re.search(r'(https?://[^\s"\'<>]+?\.m3u8[^\s"\'<>]*)', html_text)
 
-            embed_url = props.get('embedUrl')
-            media_info = props.get('title') or props.get('media') or props.get('loadedTitle') or {}
-            title_name = media_info.get('name') or media_info.get('title') or 'Film/Serie Streaming'
+            if token_match and expires_match and playlist_match:
+                token = token_match.group(1)
+                expires = expires_match.group(1)
+                playlist_url = playlist_match.group(1)
+                full_m3u8 = self._build_vix_m3u8_url(playlist_url, token, expires)
 
-            if not embed_url and 'loadedTitle' in props:
-                loaded = props['loadedTitle']
-                seasons = loaded.get('seasons', [])
-                if seasons:
-                    episodes = seasons[0].get('episodes', [])
-                    if episodes:
-                        ep_id = episodes[0].get('id')
-                        title_id = loaded.get('id')
-                        embed_url = f"https://streamingcommunity.computer/iframe/{title_id}?episode={ep_id}"
+                t_match = re.search(r'<title>(.*?)</title>', html_text, re.IGNORECASE)
+                title_name = t_match.group(1).strip() if t_match else "Streaming Video"
 
-            if not embed_url:
-                return None
-
-            episode_info = props.get('episode')
-            if episode_info:
-                ep_num = episode_info.get('number')
-                ep_name = episode_info.get('name')
-                title_name = f"{title_name} - Ep. {ep_num} {ep_name}".strip()
-
-            session.headers['Referer'] = url
-            res2 = session.get(embed_url, timeout=6)
-
-            iframe_match = re.search(r'<iframe[^>]+src=\"(.*?)\"', res2.text)
-            if not iframe_match:
-                iframe_match = re.search(r"<iframe[^>]+src='(.*?)'", res2.text)
-
-            if not iframe_match:
-                return None
-
-            iframe_src = html_module.unescape(iframe_match.group(1))
-
-            session.headers['Referer'] = embed_url
-            res3 = session.get(iframe_src, timeout=6)
-
-            token_match = re.search(r"'token':\s*'([^']+)'", res3.text)
-            expires_match = re.search(r"'expires':\s*'([^']+)'", res3.text)
-            playlist_match = re.search(r"url:\s*'([^']+)'", res3.text)
-
-            if not (token_match and expires_match and playlist_match):
-                return None
-
-            token = token_match.group(1)
-            expires = expires_match.group(1)
-            playlist_url = playlist_match.group(1)
-
-            full_m3u8 = self._build_vix_m3u8_url(playlist_url, token, expires)
-
-            return {
-                "type": "hls",
-                "title": title_name,
-                "url": full_m3u8,
-                "thumbnail": media_info.get('poster') or media_info.get('cover'),
-                "file_size": "Stream HLS (StreamingCommunity / Vixcloud)",
-                "source": "StreamingCommunity",
-                "duration": f"{media_info.get('runtime', 'N/D')} min",
-                "headers": {
-                    'User-Agent': self._browser_headers['User-Agent'],
-                    'Referer': iframe_src,
-                    'Origin': 'https://vixcloud.co'
+                return {
+                    "type": "hls",
+                    "title": title_name,
+                    "url": full_m3u8,
+                    "thumbnail": None,
+                    "file_size": "Stream HLS (StreamingCommunity / Vixcloud)",
+                    "source": "StreamingCommunity",
+                    "duration": "HLS Stream",
+                    "headers": {
+                        'User-Agent': self._browser_headers['User-Agent'],
+                        'Referer': url,
+                        'Origin': 'https://vixcloud.co'
+                    }
                 }
-            }
+
+            inertia_match = re.search(r'data-page=\"(.*?)\"', html_text) or re.search(r"data-page='(.*?)'", html_text)
+
+            if inertia_match:
+                data_json = html_module.unescape(inertia_match.group(1))
+                data = json.loads(data_json)
+                props = data.get('props', {})
+
+                embed_url = props.get('embedUrl')
+                media_info = props.get('title') or props.get('media') or props.get('loadedTitle') or {}
+                title_name = media_info.get('name') or media_info.get('title') or 'Film/Serie Streaming'
+
+                if not embed_url and 'loadedTitle' in props:
+                    loaded = props['loadedTitle']
+                    seasons = loaded.get('seasons', [])
+                    if seasons:
+                        episodes = seasons[0].get('episodes', [])
+                        if episodes:
+                            ep_id = episodes[0].get('id')
+                            title_id = loaded.get('id')
+                            parsed_u = urllib.parse.urlparse(url)
+                            embed_url = f"{parsed_u.scheme}://{parsed_u.netloc}/iframe/{title_id}?episode={ep_id}"
+
+                if embed_url:
+                    episode_info = props.get('episode')
+                    if episode_info:
+                        ep_num = episode_info.get('number')
+                        ep_name = episode_info.get('name')
+                        title_name = f"{title_name} - Ep. {ep_num} {ep_name}".strip()
+
+                    res_embed = self._resolve_streamingcommunity(embed_url)
+                    if res_embed and not res_embed.get('error'):
+                        res_embed['title'] = title_name
+                        return res_embed
+
         except Exception as ex:
             return {"error": f"Errore decodifica StreamingCommunity: {str(ex)[:100]}"}
 
+        return None
+
     def _scan_page_for_hls(self, url):
         try:
-            res = requests.get(url, headers=self._browser_headers, timeout=6)
+            if HAS_CURL_CFFI:
+                session = cffi_requests.Session(impersonate="chrome")
+                res = session.get(url, headers=self._browser_headers, timeout=6)
+            else:
+                res = requests.get(url, headers=self._browser_headers, timeout=6)
             if res.status_code != 200:
                 return None
 
@@ -466,16 +484,36 @@ class MediaDownloaderServer:
 
     def _run_download(self, download_id, url, media_type, format_choice, custom_title, custom_headers):
         try:
+            # Auto-resolve webpage / iframe / streaming URLs before downloading if needed
+            if 'streamingcommunity' in url.lower() or 'vixcloud' in url.lower() or '/iframe/' in url.lower() or ('.m3u8' not in url and not any(url.lower().endswith(ext) for ext in ['.mp4','.mkv','.webm','.mov','.avi','.mp3'])):
+                res_analysis = self.analyze_url(url)
+                if res_analysis and not res_analysis.get('error'):
+                    url = res_analysis.get('url', url)
+                    media_type = res_analysis.get('type', media_type)
+                    custom_title = custom_title or res_analysis.get('title')
+                    headers_found = res_analysis.get('headers')
+                    if headers_found:
+                        if not custom_headers:
+                            custom_headers = {}
+                        custom_headers.update(headers_found)
+
             if media_type == 'direct':
                 self._download_direct(download_id, url, custom_title, custom_headers)
             else:
-                self._download_stream_yt(download_id, url, format_choice, custom_title, custom_headers)
+                try:
+                    self._download_stream_yt(download_id, url, format_choice, custom_title, custom_headers)
+                except Exception as stream_ex:
+                    if '.m3u8' in url or media_type == 'hls' or 'vixcloud' in url:
+                        self._download_hls_custom(download_id, url, custom_title, custom_headers)
+                    else:
+                        raise stream_ex
         except Exception as ex:
-            if "DOWNLOAD_CANCELLED" in str(ex):
+            err_msg = str(ex).strip() or repr(ex) or "Errore durante il download del flusso video"
+            if "DOWNLOAD_CANCELLED" in err_msg:
                 self._downloads[download_id]["state"] = "cancelled"
             else:
                 self._downloads[download_id]["state"] = "error"
-                self._downloads[download_id]["error"] = str(ex)
+                self._downloads[download_id]["error"] = err_msg
 
     def _download_direct(self, download_id, url, custom_title=None, custom_headers=None):
         headers = self._browser_headers.copy()
@@ -527,6 +565,139 @@ class MediaDownloaderServer:
             "download_url": f"/api/download/file/{urllib.parse.quote(filename)}"
         })
 
+    def _download_hls_custom(self, download_id, m3u8_url, custom_title=None, custom_headers=None):
+        headers = self._browser_headers.copy()
+        if custom_headers and isinstance(custom_headers, dict):
+            headers.update(custom_headers)
+
+        if HAS_CURL_CFFI:
+            session = cffi_requests.Session(impersonate="chrome")
+        else:
+            session = requests.Session()
+        session.headers.update(headers)
+
+        # Parse master playlist if needed to get highest quality sub-playlist
+        res = session.get(m3u8_url, timeout=10)
+        res.raise_for_status()
+        m3u8_text = res.text
+
+        playlist_url = m3u8_url
+        if "#EXT-X-STREAM-INF" in m3u8_text:
+            lines = [l.strip() for l in m3u8_text.splitlines() if l.strip() and not l.startswith('#')]
+            if lines:
+                sub_uri = lines[-1]
+                playlist_url = urllib.parse.urljoin(m3u8_url, sub_uri)
+                res_sub = session.get(playlist_url, timeout=10)
+                res_sub.raise_for_status()
+                m3u8_text = res_sub.text
+
+        segment_urls = []
+        for line in m3u8_text.splitlines():
+            line = line.strip()
+            if line and not line.startswith('#'):
+                segment_urls.append(urllib.parse.urljoin(playlist_url, line))
+
+        if not segment_urls:
+            raise Exception("Nessun frammento video trovato nella playlist M3U8")
+
+        total_segments = len(segment_urls)
+        safe_title = re.sub(r'[\\/*?:"<>|]', "", custom_title).strip() if custom_title else f"video_{download_id}"
+        ts_filename = f"{safe_title}_{download_id}.ts"
+        mp4_filename = f"{safe_title}.mp4"
+        ts_filepath = os.path.join(DOWNLOADS_DIR, ts_filename)
+        mp4_filepath = os.path.join(DOWNLOADS_DIR, mp4_filename)
+
+        downloaded_count = 0
+        segments_data = [None] * total_segments
+
+        def fetch_segment(index_url):
+            idx, seg_url = index_url
+            for _ in range(3):
+                try:
+                    s_res = session.get(seg_url, timeout=15)
+                    if s_res.status_code == 200:
+                        return idx, s_res.content
+                except Exception:
+                    pass
+                time.sleep(0.5)
+            return idx, b""
+
+        start_time = time.time()
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+            future_to_seg = {executor.submit(fetch_segment, (i, u)): i for i, u in enumerate(segment_urls)}
+            for future in concurrent.futures.as_completed(future_to_seg):
+                self._check_download_status(download_id)
+                idx, content = future.result()
+                segments_data[idx] = content
+                downloaded_count += 1
+
+                elapsed = time.time() - start_time
+                percent = round((downloaded_count / total_segments) * 85.0, 1)
+                total_bytes_est = downloaded_count * 500000
+                speed_bps = total_bytes_est / elapsed if elapsed > 0 else 0
+
+                self._downloads[download_id].update({
+                    "percent": percent,
+                    "speed": f"{self._format_size(speed_bps)}/s",
+                    "downloaded": f"{downloaded_count}/{total_segments} frammenti",
+                    "total": f"{total_segments} seg"
+                })
+
+        # Concatenate all TS fragments sequentially
+        valid_bytes = sum(len(b) for b in segments_data if b)
+        if valid_bytes < 1000:
+            if os.path.exists(ts_filepath):
+                try: os.remove(ts_filepath)
+                except: pass
+            raise Exception("Impossibile scaricare i frammenti HLS: Risposta HTTP 403 Forbidden o token scaduto.")
+
+        with open(ts_filepath, "wb") as f_out:
+            for data in segments_data:
+                if data:
+                    f_out.write(data)
+
+        if not os.path.exists(ts_filepath) or os.path.getsize(ts_filepath) < 1000:
+            if os.path.exists(ts_filepath):
+                try: os.remove(ts_filepath)
+                except: pass
+            raise Exception("Il file TS scaricato è vuoto o incompleto.")
+
+        # Convert / Remux TS to MP4 via ffmpeg
+        self._downloads[download_id].update({
+            "percent": 90.0,
+            "speed": "Elaborazione MP4...",
+            "downloaded": "Remuxing MP4"
+        })
+
+        ffmpeg_cmd = ["ffmpeg", "-y", "-i", ts_filepath, "-c", "copy", mp4_filepath]
+        try:
+            subprocess.run(ffmpeg_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            if os.path.exists(mp4_filepath) and os.path.getsize(mp4_filepath) > 1000:
+                if os.path.exists(ts_filepath):
+                    try: os.remove(ts_filepath)
+                    except: pass
+                final_filename = mp4_filename
+            elif os.path.exists(ts_filepath) and os.path.getsize(ts_filepath) > 1000:
+                final_filename = ts_filename
+            else:
+                raise Exception("Conversione MP4 fallita e file TS vuoto.")
+        except Exception:
+            if os.path.exists(ts_filepath) and os.path.getsize(ts_filepath) > 1000:
+                final_filename = ts_filename
+            else:
+                if os.path.exists(ts_filepath):
+                    try: os.remove(ts_filepath)
+                    except: pass
+                raise Exception("Conversione in MP4 fallita. Il flusso video potrebbe essere protetto o corrotto.")
+
+        self._downloads[download_id].update({
+            "state": "completed",
+            "percent": 100.0,
+            "filename": final_filename,
+            "download_url": f"/api/download/file/{urllib.parse.quote(final_filename)}"
+        })
+
     def _download_stream_yt(self, download_id, url, format_choice, custom_title=None, custom_headers=None):
         if custom_title:
             safe_title = re.sub(r'[\\/*?:"<>|]', "", custom_title).strip()
@@ -534,12 +705,12 @@ class MediaDownloaderServer:
         else:
             out_tmpl = os.path.join(DOWNLOADS_DIR, '%(title)s.%(ext)s')
 
-        if ("playlist" in url or "vixcloud" in url) and ".m3u8" not in urllib.parse.urlparse(url).path:
+        if "vixcloud" in url.lower():
             parsed = urllib.parse.urlparse(url)
-            path = parsed.path
-            if not path.endswith('.m3u8'):
-                path = path + '.m3u8'
-            url = urllib.parse.urlunparse((parsed.scheme, parsed.netloc, path, parsed.params, parsed.query, parsed.fragment))
+            new_path = parsed.path.replace('/embed/', '/playlist/').replace('/iframe/', '/playlist/')
+            if not new_path.endswith('.m3u8'):
+                new_path = new_path + '.m3u8'
+            url = urllib.parse.urlunparse((parsed.scheme, parsed.netloc, new_path, parsed.params, parsed.query, parsed.fragment))
 
         track_progress = {}
 
@@ -598,6 +769,8 @@ class MediaDownloaderServer:
             'no_warnings': True,
             'nocheckcertificate': True,
             'http_headers': headers_to_use,
+            'impersonate': 'chrome',
+            'extractor_args': {'generic': ['impersonate']},
             'fragment_retries': 10,
             'skip_unavailable_fragments': True,
             'buffersize': 2097152,         # 2 MB buffer di lettura memoria per I/O super veloce
@@ -614,6 +787,8 @@ class MediaDownloaderServer:
             ydl_opts['referer'] = headers_to_use['Referer']
         if 'User-Agent' in headers_to_use:
             ydl_opts['user_agent'] = headers_to_use['User-Agent']
+        if 'Cookie' in headers_to_use:
+            ydl_opts['cookie'] = headers_to_use['Cookie']
 
         if ffmpeg_path:
             ydl_opts['ffmpeg_location'] = ffmpeg_path
@@ -629,44 +804,27 @@ class MediaDownloaderServer:
             })
         elif format_choice in ('1080', '720', '480', '360', '2160'):
             h = format_choice
-            if ffmpeg_path:
-                ydl_opts.update({
-                    'format': f'bv*[height<={h}]+ba/b[height<={h}]/best[height<={h}]',
-                    'merge_output_format': 'mp4',
-                    'postprocessor_args': {
-                        'ffmpeg': ['-c:v', 'copy', '-c:a', 'aac']
-                    }
-                })
-            else:
-                ydl_opts.update({
-                    'format': f'b[height<={h}]/best[height<={h}]/best'
-                })
+            ydl_opts.update({
+                'format': f'b[height<={h}]/bv*[height<={h}]+ba/best[height<={h}]/best',
+                'merge_output_format': 'mp4'
+            })
         else:
-            if ffmpeg_path:
-                ydl_opts.update({
-                    'format': 'bv*+ba/b/best',
-                    'merge_output_format': 'mp4',
-                    'postprocessor_args': {
-                        'ffmpeg': ['-c:v', 'copy', '-c:a', 'aac']
-                    }
-                })
-            else:
-                ydl_opts.update({
-                    'format': 'b/best'
-                })
+            ydl_opts.update({
+                'format': 'b/best/bv*+ba',
+                'merge_output_format': 'mp4'
+            })
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             prep_filename = ydl.prepare_filename(info)
             filename = os.path.basename(prep_filename)
-            if not os.path.exists(os.path.join(DOWNLOADS_DIR, filename)):
-                base, _ = os.path.splitext(filename)
-                if os.path.exists(os.path.join(DOWNLOADS_DIR, base + '.mp4')):
-                    filename = base + '.mp4'
-                elif os.path.exists(os.path.join(DOWNLOADS_DIR, base + '.mkv')):
-                    filename = base + '.mkv'
-                elif os.path.exists(os.path.join(DOWNLOADS_DIR, base + '.mp3')):
-                    filename = base + '.mp3'
+            full_path = os.path.join(DOWNLOADS_DIR, filename)
+            if not os.path.exists(full_path) or os.path.getsize(full_path) < 1000:
+                if os.path.exists(full_path):
+                    try: os.remove(full_path)
+                    except: pass
+                raise Exception("Il file scaricato tramite motore stream è vuoto o incompleto.")
+
             self._downloads[download_id].update({
                 "state": "completed",
                 "percent": 100.0,

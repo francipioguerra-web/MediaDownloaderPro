@@ -1,69 +1,131 @@
 // MediaDownloader Pro - Popup Controller
 
-const LOCAL_SERVER_URL = "http://localhost:5050";
+let LOCAL_SERVER_URL = "http://localhost:5050";
 
 let currentActiveTab = null;
 let currentMediaData = null;
 let activeDownloadId = null;
 let progressPollInterval = null;
 let isServerOnline = false;
+let activeBrowserHLSInstance = null;
 
 document.addEventListener("DOMContentLoaded", async () => {
+  const select = document.getElementById("serverModeSelect");
+  const stored = await chrome.storage.local.get(["selectedServerUrl"]);
+  
+  if (stored && stored.selectedServerUrl) {
+    LOCAL_SERVER_URL = stored.selectedServerUrl;
+  } else {
+    // Auto-check if local Mac server is running on port 5050
+    try {
+      const pingLocal = await fetch("http://localhost:5050/api/ping", { signal: AbortSignal.timeout(1500) });
+      if (pingLocal.ok) {
+        LOCAL_SERVER_URL = "http://localhost:5050";
+      } else {
+        LOCAL_SERVER_URL = "https://mediadownloaderpro-3q69.onrender.com";
+      }
+    } catch (e) {
+      LOCAL_SERVER_URL = "https://mediadownloaderpro-3q69.onrender.com";
+    }
+  }
+  
+  if (select) select.value = LOCAL_SERVER_URL;
+
   setupEventListeners();
   await checkServerStatus();
   await restoreActiveDownloadOrScanTab();
 });
 
 function setupEventListeners() {
-  document.getElementById("btnCopyUrl").addEventListener("click", () => {
-    const input = document.getElementById("targetUrlInput");
-    input.select();
-    navigator.clipboard.writeText(input.value);
-    const btn = document.getElementById("btnCopyUrl");
-    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
-    setTimeout(() => {
-      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
-    }, 1500);
-  });
+  const select = document.getElementById("serverModeSelect");
+  if (select) {
+    select.addEventListener("change", async (e) => {
+      LOCAL_SERVER_URL = e.target.value;
+      await chrome.storage.local.set({ selectedServerUrl: LOCAL_SERVER_URL });
+      await checkServerStatus();
+      await restoreActiveDownloadOrScanTab();
+    });
+  }
+
+  const btnCopy = document.getElementById("btnCopyUrl");
+  if (btnCopy) {
+    btnCopy.addEventListener("click", () => {
+      const input = document.getElementById("targetUrlInput");
+      input.select();
+      navigator.clipboard.writeText(input.value);
+      btnCopy.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+      setTimeout(() => {
+        btnCopy.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+      }, 1500);
+    });
+  }
 
   document.getElementById("btnStartFastDownload").addEventListener("click", startFastDownload);
   document.getElementById("btnDirectBrowserDownload").addEventListener("click", startBrowserDownload);
   document.getElementById("btnRetryScan").addEventListener("click", initializeTabAnalysis);
-  
+
   // Download Control Buttons
   document.getElementById("btnPauseDl").addEventListener("click", pauseDownload);
   document.getElementById("btnResumeDl").addEventListener("click", resumeDownload);
   document.getElementById("btnCancelDl").addEventListener("click", cancelDownload);
 }
 
-// 1. Check local server status
+// Extract cookies from active tab and target domain for passing Cloudflare clearance session to server
+async function getTabCookiesHeader(targetUrl) {
+  const cookieMap = new Map();
+  const currentUrl = currentActiveTab ? currentActiveTab.url : null;
+
+  try {
+    if (targetUrl && (targetUrl.startsWith("http://") || targetUrl.startsWith("https://"))) {
+      const targetCookies = await chrome.cookies.getAll({ url: targetUrl });
+      if (targetCookies) {
+        targetCookies.forEach(c => cookieMap.set(c.name, c.value));
+      }
+    }
+  } catch (e) {}
+
+  try {
+    if (currentUrl && currentUrl !== targetUrl && (currentUrl.startsWith("http://") || currentUrl.startsWith("https://"))) {
+      const tabCookies = await chrome.cookies.getAll({ url: currentUrl });
+      if (tabCookies) {
+        tabCookies.forEach(c => cookieMap.set(c.name, c.value));
+      }
+    }
+  } catch (e) {}
+
+  if (cookieMap.size > 0) {
+    return Array.from(cookieMap.entries()).map(([k, v]) => `${k}=${v}`).join("; ");
+  }
+  return "";
+}
+
+// 1. Check server status
 async function checkServerStatus() {
   const badge = document.getElementById("serverStatusBadge");
   const badgeText = document.getElementById("serverStatusText");
+  const footerLink = document.getElementById("footerWebDashboardLink");
+
+  if (footerLink) {
+    footerLink.href = LOCAL_SERVER_URL;
+    footerLink.textContent = `Apri Dashboard Web (${LOCAL_SERVER_URL.replace("https://", "").replace("http://", "")})`;
+  }
 
   try {
-    const res = await fetch(`${LOCAL_SERVER_URL}/api/ping`, { method: "GET" });
+    const res = await fetch(`${LOCAL_SERVER_URL}/api/ping`, { 
+      method: "GET",
+      signal: AbortSignal.timeout(3000)
+    });
     if (res.ok) {
       isServerOnline = true;
-      badge.className = "status-badge online";
-      badgeText.textContent = "Server Attivo";
+      if (badge) badge.className = "status-badge online";
+      if (badgeText) badgeText.textContent = LOCAL_SERVER_URL.includes("localhost") ? "Server Mac Attivo" : "Server Cloud Attivo";
       return;
     }
   } catch (err) {}
 
-  try {
-    const res2 = await fetch(`${LOCAL_SERVER_URL}/`, { method: "GET" });
-    if (res2.ok) {
-      isServerOnline = true;
-      badge.className = "status-badge online";
-      badgeText.textContent = "Server Attivo";
-      return;
-    }
-  } catch (e) {}
-
   isServerOnline = false;
-  badge.className = "status-badge offline";
-  badgeText.textContent = "Server Offline";
+  if (badge) badge.className = "status-badge offline";
+  if (badgeText) badgeText.textContent = "Server Offline (Browser Direct Mode)";
 }
 
 // 2. Auto-restore active download state across popup reopen
@@ -72,7 +134,6 @@ async function restoreActiveDownloadOrScanTab() {
 
   if (isServerOnline) {
     try {
-      // Check server for any running or paused downloads
       const res = await fetch(`${LOCAL_SERVER_URL}/api/download/active`);
       if (res.ok) {
         const data = await res.json();
@@ -127,54 +188,74 @@ async function initializeTabAnalysis() {
       return;
     }
 
-    // Attempt 1: Analyze via local Python server engine
-    if (isServerOnline) {
-      try {
-        const res = await fetch(`${LOCAL_SERVER_URL}/api/analyze`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: pageUrl })
+    // A. Check background network sniffer media items
+    let sniffedItems = [];
+    try {
+      const sniffRes = await new Promise((resolve) => {
+        chrome.runtime.sendMessage({ action: "GET_SNIFFED_MEDIA", tabId: currentActiveTab.id }, (res) => {
+          if (chrome.runtime.lastError) resolve(null);
+          else resolve(res);
         });
-        const data = await res.json();
-        if (data && !data.error) {
-          renderMediaCard(data, pageUrl);
-          return;
+      });
+      if (sniffRes && sniffRes.media) {
+        sniffedItems = sniffRes.media;
+      }
+    } catch (e) {}
+
+    const bestSniffed = sniffedItems.find(m => m.type === 'hls' || m.url.includes('.m3u8')) || sniffedItems[0];
+
+    // B. Analyze via Python server engine (try sniffed URL first if present, then page URL)
+    if (isServerOnline) {
+      const urlsToTry = [];
+      if (bestSniffed && bestSniffed.url) urlsToTry.push(bestSniffed.url);
+      urlsToTry.push(pageUrl);
+
+      for (const targetUrl of urlsToTry) {
+        try {
+          const res = await fetch(`${LOCAL_SERVER_URL}/api/analyze`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: targetUrl })
+          });
+          const data = await res.json();
+          if (data && !data.error) {
+            renderMediaCard(data, pageUrl);
+            return;
+          }
+        } catch (e) {
+          console.warn("Backend analysis failed for", targetUrl, e);
         }
-      } catch (e) {
-        console.warn("Backend analysis failed, fallback to client scan", e);
       }
     }
 
-    // Attempt 2: Client DOM & Sniffed network scanner
+    // C. Fallback: If sniffer captured a valid media item
+    if (bestSniffed) {
+      renderMediaCard({
+        type: bestSniffed.type || "stream",
+        title: currentActiveTab.title || "Video Stream Rilevato",
+        url: bestSniffed.url,
+        file_size: "Flusso Rilevato",
+        source: new URL(pageUrl).hostname,
+        duration: "N/D"
+      }, pageUrl);
+      return;
+    }
+
+    // D. Fallback: Query DOM content script scanner
     chrome.tabs.sendMessage(currentActiveTab.id, { action: "SCAN_PAGE_MEDIA" }, (response) => {
-      if (response && response.media && response.media.length > 0) {
-        const item = response.media[0];
-        renderMediaCard({
-          type: item.type,
-          title: item.title || response.pageTitle || "Video Rilevato",
-          url: item.url,
-          file_size: "File Rilevato",
-          source: new URL(pageUrl).hostname,
-          duration: "N/D"
-        }, pageUrl);
-      } else {
-        // Check background network sniffer
-        chrome.runtime.sendMessage({ action: "GET_SNIFFED_MEDIA", tabId: currentActiveTab.id }, (sniffRes) => {
-          if (sniffRes && sniffRes.media && sniffRes.media.length > 0) {
-            const item = sniffRes.media[0];
-            renderMediaCard({
-              type: item.type,
-              title: currentActiveTab.title || "Video Stream",
-              url: item.url,
-              file_size: "Flusso Rilevato",
-              source: new URL(pageUrl).hostname,
-              duration: "N/D"
-            }, pageUrl);
-          } else {
-            showView("noMediaView");
-          }
-        });
+      if (chrome.runtime.lastError || !response || !response.media || response.media.length === 0) {
+        showView("noMediaView");
+        return;
       }
+      const item = response.media[0];
+      renderMediaCard({
+        type: item.type,
+        title: item.title || response.pageTitle || "Video Rilevato",
+        url: item.url,
+        file_size: "File Rilevato",
+        source: new URL(pageUrl).hostname,
+        duration: "N/D"
+      }, pageUrl);
     });
 
   } catch (err) {
@@ -205,17 +286,28 @@ function renderMediaCard(mediaInfo, pageUrl) {
   showView("resultView");
 }
 
-// 5. Start download via local Python engine (app_fast.py / web_app.py)
+// 5. Start download via Python engine or Browser fallback
 async function startFastDownload() {
   if (!isServerOnline) {
-    alert("Il Server MediaDownloader non è attivo su http://localhost:5050!\nAvvia 'web_app.py' per usare il download ad alta velocità.");
+    // If server is offline, seamlessly use in-browser download mode
+    await startBrowserDownload();
     return;
   }
 
   if (!currentMediaData) return;
 
   const formatChoice = document.getElementById("formatSelect").value;
-  const targetUrl = currentMediaData.url;
+  const targetUrl = document.getElementById("targetUrlInput").value || currentMediaData.url;
+
+  // Extract cookies from Chrome browser tab for Cloudflare clearance session
+  const cookieStr = await getTabCookiesHeader(targetUrl || (currentActiveTab ? currentActiveTab.url : null));
+  const customHeaders = currentMediaData.headers || {};
+  if (cookieStr) {
+    customHeaders['Cookie'] = cookieStr;
+  }
+  if (currentActiveTab && currentActiveTab.url) {
+    if (!customHeaders['Referer']) customHeaders['Referer'] = currentActiveTab.url;
+  }
 
   try {
     const res = await fetch(`${LOCAL_SERVER_URL}/api/download/start`, {
@@ -226,7 +318,7 @@ async function startFastDownload() {
         media_type: currentMediaData.type || "stream",
         format_choice: formatChoice,
         custom_title: currentMediaData.title,
-        custom_headers: currentMediaData.headers || null
+        custom_headers: customHeaders
       })
     });
 
@@ -237,14 +329,15 @@ async function startFastDownload() {
       showView("progressView");
       startPollingProgress();
     } else {
-      alert("Errore nell'avvio del download.");
+      alert("Errore nell'avvio del download: " + (data.error || "Risposta server non valida"));
     }
   } catch (err) {
-    alert("Impossibile contattare il server di download: " + err.message);
+    alert("Impossibile contattare il server di download. Avvio del download nel browser...");
+    await startBrowserDownload();
   }
 }
 
-// 6. Poll download status with Pause / Resume / Cancel integration
+// 6. Poll server download status
 function startPollingProgress() {
   if (progressPollInterval) clearInterval(progressPollInterval);
 
@@ -272,7 +365,7 @@ function startPollingProgress() {
           btnPause.classList.add("hidden");
           btnResume.classList.remove("hidden");
         } else if (statusData.state === "running" || statusData.state === "starting") {
-          progressTitle.textContent = "⚡ Download in corso (Fast)...";
+          progressTitle.textContent = "⚡ Download in corso (Server)...";
           btnPause.classList.remove("hidden");
           btnResume.classList.add("hidden");
         }
@@ -280,8 +373,26 @@ function startPollingProgress() {
         if (statusData.state === "completed") {
           clearInterval(progressPollInterval);
           chrome.storage.local.remove(["activeDownloadId"]);
-          alert("🎉 Download completato con successo!");
           activeDownloadId = null;
+
+          // Trigger browser download of the completed file
+          if (statusData.download_url) {
+            const fileUrl = statusData.download_url.startsWith("http")
+              ? statusData.download_url
+              : `${LOCAL_SERVER_URL}${statusData.download_url}`;
+
+            chrome.downloads.download({
+              url: fileUrl,
+              filename: statusData.filename || "media_download.mp4",
+              saveAs: false
+            }, () => {
+              if (chrome.runtime.lastError) {
+                console.warn("Browser download trigger warning:", chrome.runtime.lastError);
+              }
+            });
+          }
+
+          alert("🎉 Download completato con successo! Il file è stato inviato ai download del tuo browser.");
           initializeTabAnalysis();
         } else if (statusData.state === "error") {
           clearInterval(progressPollInterval);
@@ -302,8 +413,15 @@ function startPollingProgress() {
   }, 500);
 }
 
-// 7. Pause download
+// 7. Pause download (Server or In-Browser)
 async function pauseDownload() {
+  if (activeBrowserHLSInstance) {
+    activeBrowserHLSInstance.pause();
+    document.querySelector(".progress-title").textContent = "⏸ Download in Pausa (Browser)";
+    document.getElementById("btnPauseDl").classList.add("hidden");
+    document.getElementById("btnResumeDl").classList.remove("hidden");
+    return;
+  }
   if (!activeDownloadId) return;
   try {
     await fetch(`${LOCAL_SERVER_URL}/api/download/pause/${activeDownloadId}`, { method: "POST" });
@@ -312,8 +430,15 @@ async function pauseDownload() {
   }
 }
 
-// 8. Resume download
+// 8. Resume download (Server or In-Browser)
 async function resumeDownload() {
+  if (activeBrowserHLSInstance) {
+    activeBrowserHLSInstance.resume();
+    document.querySelector(".progress-title").textContent = "⚡ Download in corso nel Browser (No Server)...";
+    document.getElementById("btnPauseDl").classList.remove("hidden");
+    document.getElementById("btnResumeDl").classList.add("hidden");
+    return;
+  }
   if (!activeDownloadId) return;
   try {
     await fetch(`${LOCAL_SERVER_URL}/api/download/resume/${activeDownloadId}`, { method: "POST" });
@@ -322,8 +447,14 @@ async function resumeDownload() {
   }
 }
 
-// 9. Cancel active download
+// 9. Cancel active download (Server or In-Browser)
 async function cancelDownload() {
+  if (activeBrowserHLSInstance) {
+    activeBrowserHLSInstance.cancel();
+    activeBrowserHLSInstance = null;
+    initializeTabAnalysis();
+    return;
+  }
   if (!activeDownloadId) return;
   try {
     await fetch(`${LOCAL_SERVER_URL}/api/download/cancel/${activeDownloadId}`, { method: "POST" });
@@ -334,43 +465,91 @@ async function cancelDownload() {
   initializeTabAnalysis();
 }
 
-// 10. Direct browser download fallback
+// 10. Native In-Browser HLS & Direct File Downloader (No Server Required!)
 async function startBrowserDownload() {
-  if (!currentMediaData || !currentMediaData.url) return;
+  const targetUrl = document.getElementById("targetUrlInput").value || (currentMediaData ? currentMediaData.url : null);
+  if (!targetUrl) return;
 
-  let downloadUrl = currentMediaData.url;
+  const safeTitle = (currentMediaData && currentMediaData.title)
+    ? currentMediaData.title.replace(/[^a-zA-Z0-9_\-\s]/g, "_").trim()
+    : "video_download";
 
-  if (currentMediaData.type === 'hls' || downloadUrl.includes('.m3u8')) {
-    alert("⚠️ I flussi HLS (.m3u8) sono divisi in centinaia di frammenti e non possono essere scaricati direttamente dal browser come un singolo file MP4.\n\nPer scaricare questo video completo in MP4, usa il pulsante 'Scarica con MediaDownloader (Fast)' con il server attivo su http://localhost:5050.");
+  const isHLS = targetUrl.includes('.m3u8') || (currentMediaData && currentMediaData.type === 'hls');
+
+  if (isHLS) {
+    // A. Native In-Browser HLS Downloader Engine (Complete Cloudflare Bypass!)
+    showView("progressView");
+
+    const progressTitle = document.querySelector(".progress-title");
+    const btnPause = document.getElementById("btnPauseDl");
+    const btnResume = document.getElementById("btnResumeDl");
+
+    progressTitle.textContent = "⚡ Download in corso nel Browser (No Server)...";
+    btnPause.classList.remove("hidden");
+    btnResume.classList.add("hidden");
+
+    activeBrowserHLSInstance = new window.InBrowserHLSDownloader();
+
+    const headers = {};
+    if (currentActiveTab && currentActiveTab.url) {
+      headers['Referer'] = currentActiveTab.url;
+    }
+
+    try {
+      const blob = await activeBrowserHLSInstance.downloadHLS(targetUrl, headers, (stats) => {
+        document.getElementById("progressBarFill").style.width = `${stats.percent}%`;
+        document.getElementById("progressPercent").textContent = `${stats.percent.toFixed(1)}%`;
+
+        const downloadedMB = (stats.totalBytes / (1024 * 1024)).toFixed(1);
+        document.getElementById("progressDownloaded").textContent = `${stats.completedCount}/${stats.total} seg (${downloadedMB} MB)`;
+
+        const speedMBps = (stats.speedBps / (1024 * 1024)).toFixed(1);
+        document.getElementById("progressSpeed").textContent = `${speedMBps} MB/s`;
+
+        if (activeBrowserHLSInstance.isPaused) {
+          progressTitle.textContent = "⏸ Download in Pausa (Browser)";
+          btnPause.classList.add("hidden");
+          btnResume.classList.remove("hidden");
+        } else {
+          progressTitle.textContent = "⚡ Download in corso nel Browser (No Server)...";
+          btnPause.classList.remove("hidden");
+          btnResume.classList.add("hidden");
+        }
+      });
+
+      // Save generated Blob file directly to Chrome Downloads
+      const blobUrl = URL.createObjectURL(blob);
+      chrome.downloads.download({
+        url: blobUrl,
+        filename: `${safeTitle}.ts`,
+        saveAs: false
+      }, (downloadId) => {
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+      });
+
+      alert("🎉 Download completato con successo direttamente dal tuo browser!");
+      activeBrowserHLSInstance = null;
+      initializeTabAnalysis();
+
+    } catch (err) {
+      if (err.message === "DOWNLOAD_CANCELLED") {
+        activeBrowserHLSInstance = null;
+        initializeTabAnalysis();
+      } else {
+        alert("❌ Errore durante il download nel browser: " + err.message);
+        activeBrowserHLSInstance = null;
+        initializeTabAnalysis();
+      }
+    }
+
     return;
   }
 
-  const parsedPath = new URL(downloadUrl).pathname.toLowerCase();
-  const directMediaExts = ['.mp4', '.mkv', '.webm', '.mov', '.avi', '.mp3', '.m4a', '.flac', '.wav'];
-  const isDirectFile = directMediaExts.some(ext => parsedPath.endsWith(ext)) || downloadUrl.includes('pixeldrain.com/api/file/');
-
-  if (!isDirectFile && isServerOnline) {
-    try {
-      const res = await fetch(`${LOCAL_SERVER_URL}/api/analyze`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: downloadUrl })
-      });
-      const data = await res.json();
-      if (data && data.url && data.type === 'direct') {
-        downloadUrl = data.url;
-      } else if (data && data.type === 'hls') {
-        alert("⚠️ Questo contenuto è un flusso video HLS (.m3u8). Il browser non può unirlo in un unico MP4.\n\nUsa il pulsante 'Scarica con MediaDownloader (Fast)'.");
-        return;
-      }
-    } catch (e) {}
-  }
-
-  const safeFilename = (currentMediaData.title ? currentMediaData.title.replace(/[^a-zA-Z0-9_-]/g, "_") : "media_download") + ".mp4";
-
+  // B. Direct File Browser Download
+  const safeFilename = `${safeTitle}.mp4`;
   chrome.runtime.sendMessage({
     action: "START_BROWSER_DOWNLOAD",
-    url: downloadUrl,
+    url: targetUrl,
     filename: safeFilename
   }, (res) => {
     if (res && res.success) {

@@ -2,17 +2,43 @@
 
 const tabMediaMap = {};
 
-// Filter patterns for video/audio streams
-const MEDIA_PATTERNS = [
-  "*.m3u8*",
-  "*vixcloud.co/playlist*",
-  "*vixcloud.co/embed*",
-  "*.mp4*",
-  "*.mkv*",
-  "*.webm*",
-  "*.m4a*",
-  "*.mp3*"
-];
+// Helper to filter real media stream and file URLs
+function isMediaUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  if (url.startsWith('chrome-extension:') || url.startsWith('data:') || url.startsWith('blob:')) return false;
+
+  const urlLower = url.toLowerCase();
+  const cleanUrl = urlLower.split('?')[0];
+
+  // Exclude standard static web assets
+  if (/\.(png|jpg|jpeg|gif|svg|webp|ico|css|js|woff|woff2|ttf|otf|eot|json|html|php|asp|jsx|tsx)(\?|$)/i.test(cleanUrl)) {
+    return false;
+  }
+
+  // Exclude ad & analytics scripts
+  if (urlLower.includes("google-analytics") || urlLower.includes("doubleclick") || urlLower.includes("facebook.com") || urlLower.includes("analytics")) {
+    return false;
+  }
+
+  // Known media file extensions
+  if (/\.(m3u8|mp4|mkv|webm|m4a|mp3|mov|avi|flac|wav)(\?|$)/i.test(cleanUrl)) {
+    return true;
+  }
+
+  // Known streaming hosts / stream URLs
+  if (urlLower.includes("vixcloud.co") || 
+      urlLower.includes("pixeldrain.com/api/file/") || 
+      urlLower.includes("bunkr") || 
+      urlLower.includes("streamtape") || 
+      urlLower.includes("doodstream") ||
+      urlLower.includes("voe.sx") ||
+      urlLower.includes("/playlist/") ||
+      urlLower.includes("/hls/")) {
+    return true;
+  }
+
+  return false;
+}
 
 // Listen for network requests matching media patterns
 chrome.webRequest.onBeforeRequest.addListener(
@@ -20,10 +46,7 @@ chrome.webRequest.onBeforeRequest.addListener(
     if (!details.url || details.tabId < 0) return;
     const url = details.url;
 
-    // Ignore tiny requests / images / analytics
-    if (url.includes(".png") || url.includes(".jpg") || url.includes(".svg") || url.includes("google-analytics")) {
-      return;
-    }
+    if (!isMediaUrl(url)) return;
 
     if (!tabMediaMap[details.tabId]) {
       tabMediaMap[details.tabId] = [];
@@ -33,7 +56,7 @@ chrome.webRequest.onBeforeRequest.addListener(
     const exists = tabMediaMap[details.tabId].some(item => item.url === url);
     if (!exists) {
       let mediaType = "direct";
-      if (url.includes(".m3u8") || url.includes("vixcloud.co")) {
+      if (url.includes(".m3u8") || url.includes("vixcloud.co") || url.includes("/hls/") || url.includes("/playlist/")) {
         mediaType = "hls";
       }
 
@@ -75,3 +98,4 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
   return true;
 });
+

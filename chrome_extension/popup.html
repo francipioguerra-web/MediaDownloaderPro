@@ -27,6 +27,15 @@
       </div>
     </header>
 
+    <!-- Server Selector Bar -->
+    <div class="server-selector-bar">
+      <label for="serverModeSelect">Server Engine:</label>
+      <select id="serverModeSelect" class="server-mode-select">
+        <option value="https://mediadownloaderpro-3q69.onrender.com" selected>🌐 Cloud Server (Render)</option>
+        <option value="http://localhost:5050">💻 Server Locale (Mac)</option>
+      </select>
+    </div>
+
     <!-- Main Content -->
     <main class="app-body">
       <!-- Loading State -->
@@ -53,7 +62,7 @@
 
           <!-- URL Source Display -->
           <div class="url-box">
-            <input type="text" id="targetUrlInput" readonly class="url-input" />
+            <input type="text" id="targetUrlInput" class="url-input" placeholder="Inserisci o modifica URL del video..." />
             <button id="btnCopyUrl" class="btn-icon" title="Copia URL">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
             </button>
@@ -123,10 +132,11 @@
 
     <!-- Footer -->
     <footer class="app-footer">
-      <a href="http://localhost:5050" target="_blank" class="footer-link">Apri Dashboard Web (localhost:5050)</a>
+      <a id="footerWebDashboardLink" href="http://localhost:5050" target="_blank" class="footer-link">Apri Dashboard Web</a>
     </footer>
   </div>
 
+  <script src="hls_downloader.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>
