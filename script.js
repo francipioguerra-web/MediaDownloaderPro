@@ -32,14 +32,15 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentAnalysis = null;
   let currentFolder = "~/Downloads";
   let activeDownloads = {};
-  let historyData = [];
+  let lastProcessedUrl = "";
 
   function checkAndAutoAnalyzePendingUrl() {
     if (window.pywebview && window.pywebview.api) {
       const api = window.pywebview.api;
       const getter = api.get_pending_url ? api.get_pending_url() : api.read_clipboard();
       Promise.resolve(getter).then(url => {
-        if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+        if (url && (url.startsWith('http://') || url.startsWith('https://')) && url !== lastProcessedUrl) {
+          lastProcessedUrl = url;
           urlInput.value = url;
           triggerAnalysis();
         }
@@ -60,9 +61,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Auto-paste and analyze on window focus and polling
+  // Auto-paste and analyze on window focus
   window.addEventListener('focus', checkAndAutoAnalyzePendingUrl);
-  setInterval(checkAndAutoAnalyzePendingUrl, 1000);
 
   // Chip selection
   chips.forEach(chip => {
