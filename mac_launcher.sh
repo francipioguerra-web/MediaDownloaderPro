@@ -13,8 +13,9 @@ if [ -n "$TARGET_URL" ]; then
     echo -n "$TARGET_URL" | pbcopy
 fi
 
-# Launch live python desktop app with latest code and parameters
+# Launch live python app and bring application to focus
 python3 /Users/amministratore/Desktop/MediaDownloader/app_fast.py "$TARGET_URL" >/dev/null 2>&1 &
+open -a /Applications/MediaDownloader.app 2>/dev/null || true
 
 RESPONSE='{"status":"ok","launched":true}'
 LEN=${#RESPONSE}
