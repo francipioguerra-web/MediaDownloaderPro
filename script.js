@@ -43,6 +43,25 @@ document.addEventListener('DOMContentLoaded', () => {
           folderPathSpan.textContent = folder;
         }
       });
+      // Auto-paste & analyze link sent from Chrome extension
+      window.pywebview.api.read_clipboard().then(text => {
+        if (text && (text.startsWith('http://') || text.startsWith('https://'))) {
+          urlInput.value = text;
+          triggerAnalysis();
+        }
+      });
+    }
+  });
+
+  // Auto-paste link on window focus
+  window.addEventListener('focus', () => {
+    if (window.pywebview && window.pywebview.api) {
+      window.pywebview.api.read_clipboard().then(text => {
+        if (text && text !== urlInput.value && (text.startsWith('http://') || text.startsWith('https://'))) {
+          urlInput.value = text;
+          triggerAnalysis();
+        }
+      });
     }
   });
 

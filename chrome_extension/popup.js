@@ -182,14 +182,26 @@ async function openAndSendToMacApp() {
   const targetUrl = document.getElementById("targetUrlInput").value || (currentMediaData ? currentMediaData.url : null);
   if (!targetUrl) return;
 
-  // A. Copy URL to clipboard for instant pasting
-  navigator.clipboard.writeText(targetUrl);
+  const btn = document.getElementById("btnOpenMacApp");
+  if (btn) {
+    btn.innerHTML = `✓ Inviato all'App Mac!`;
+    btn.style.backgroundColor = "#10B981";
+  }
 
-  // B. Try Chrome Native Messaging Host to launch /Applications/MediaDownloader.app
+  // A. Copy URL to clipboard for instant pasting
+  try {
+    await navigator.clipboard.writeText(targetUrl);
+  } catch (e) {}
+
+  // B. Chrome Native Messaging Host (Opens /Applications/MediaDownloader.app instantly with NO prompt)
   try {
     chrome.runtime.sendNativeMessage("com.mediadownloader.mac", { url: targetUrl }, (response) => {
       if (chrome.runtime.lastError) {
-        console.warn("Native Messaging:", chrome.runtime.lastError.message);
+        // Fallback to custom protocol
+        const customSchemeUrl = `mediadownloader://download?url=${encodeURIComponent(targetUrl)}`;
+        if (currentActiveTab && currentActiveTab.id) {
+          chrome.tabs.update(currentActiveTab.id, { url: customSchemeUrl });
+        }
       }
     });
   } catch (e) {}
@@ -208,16 +220,9 @@ async function openAndSendToMacApp() {
     } catch (e) {}
   }
 
-  // D. Open macOS app custom protocol handler (mediadownloader://)
-  try {
-    const customSchemeUrl = `mediadownloader://download?url=${encodeURIComponent(targetUrl)}`;
-    window.location.href = customSchemeUrl;
-    if (currentActiveTab && currentActiveTab.id) {
-      chrome.tabs.update(currentActiveTab.id, { url: customSchemeUrl });
-    }
-  } catch (e) {}
-
-  alert("🚀 Applicazione MediaDownloader in avvio sul tuo Mac!\n\nIl link del video è stato inviato all'app e copiato negli appunti.");
+  setTimeout(() => {
+    window.close();
+  }, 800);
 }
 
 function showView(viewId) {

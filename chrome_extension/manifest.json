@@ -2,6 +2,7 @@
   "manifest_version": 3,
   "name": "MediaDownloader Pro",
   "version": "1.0.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAkEdfNWf5vLsDl2oykfj2BjPiZuTBkNYe0wRaNlHtWX/ZBGnFSRO1t5NxCWR6eUU71tVUV4hpD1iG433oqn5QQsQ4kklUDyMn0hcQk3O9qx6H+SHjtduWlcqPetaGRfmlbUm73956+bwfT0lIYORCcxXj5WNkPlSHNX7ZxvaxxnXeEgPGu4rek49jVvCQ0I2F7vT45Q7Yma3iyKiTk/cdn4QMn/ikWqSYaihqKJa51RHzO+NEcfCda9SqPCa+BN6CPgY+Q12zSth9fEUFqa6o/d2lukTXY8tQVhyTgkTz+V31YKLC0H4PEghMs/JKTJS72HCWxpcuyo4YS5AWmi6YzwIDAQAB",
   "description": "Rileva e scarica automaticamente video, audio e flussi HLS (.m3u8) dalla pagina attiva.",
   "permissions": [
     "activeTab",
