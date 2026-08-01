@@ -55,5 +55,18 @@ app = BUNDLE(
     coll,
     name='MediaDownloader.app',
     icon=None,
-    bundle_identifier=None,
+    bundle_identifier='com.mediadownloader.mac',
+    info_plist={
+        'CFBundleDisplayName': 'MediaDownloader',
+        'CFBundleName': 'MediaDownloader',
+        'CFBundleIdentifier': 'com.mediadownloader.mac',
+        'CFBundleVersion': '1.0.0',
+        'CFBundleShortVersionString': '1.0.0',
+        'CFBundleURLTypes': [
+            {
+                'CFBundleURLName': 'MediaDownloader Protocol',
+                'CFBundleURLSchemes': ['mediadownloader']
+            }
+        ]
+    }
 )
