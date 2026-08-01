@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const api = window.pywebview.api;
       const getter = api.get_pending_url ? api.get_pending_url() : api.read_clipboard();
       Promise.resolve(getter).then(url => {
-        if (url && (url.startsWith('http://') || url.startsWith('https://')) && url !== urlInput.value) {
+        if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
           urlInput.value = url;
           triggerAnalysis();
         }
