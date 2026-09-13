@@ -591,7 +591,7 @@ class Engine:
                     if m_type not in ['movie', 'tv']: continue
                     title = t.get('title') or t.get('name')
                     poster_path = t.get('poster_path')
-                    poster_url = f"https://image.tmdb.org/t/p/w500{poster_path}" if poster_path else ""
+                    poster_url = f"https://image.tmdb.org/t/p/w342{poster_path}" if poster_path else ""
                     backdrop_path = t.get('backdrop_path')
                     cover_url = f"https://image.tmdb.org/t/p/original{backdrop_path}" if backdrop_path else poster_url
                     t_id = t.get('id')
@@ -1055,7 +1055,7 @@ class Engine:
                     d = r.json()
                     name = d.get('title') or d.get('name')
                     plot = d.get('overview') or 'Nessuna trama disponibile in italiano.'
-                    poster = f"https://image.tmdb.org/t/p/w500{d.get('poster_path')}" if d.get('poster_path') else ''
+                    poster = f"https://image.tmdb.org/t/p/w342{d.get('poster_path')}" if d.get('poster_path') else ''
                     cover = f"https://image.tmdb.org/t/p/original{d.get('backdrop_path')}" if d.get('backdrop_path') else poster
                     
                     episodes = []
@@ -1067,7 +1067,7 @@ class Engine:
                             for ep in sr.json().get('episodes', []):
                                 ep_num = ep.get('episode_number')
                                 still_path = ep.get('still_path')
-                                ep_img = f"https://image.tmdb.org/t/p/w500{still_path}" if still_path else None
+                                ep_img = f"https://image.tmdb.org/t/p/w342{still_path}" if still_path else None
                                 episodes.append({
                                     "id": f"{tmdb_id}-1-{ep_num}",
                                     "number": ep_num,
@@ -1159,7 +1159,7 @@ class Engine:
                     for ep in sr.json().get('episodes', []):
                         ep_num = ep.get('episode_number')
                         still_path = ep.get('still_path')
-                        ep_img = f"https://image.tmdb.org/t/p/w500{still_path}" if still_path else None
+                        ep_img = f"https://image.tmdb.org/t/p/w342{still_path}" if still_path else None
                         episodes.append({
                             "id": f"{tmdb_id}-{season_number}-{ep_num}",
                             "number": ep_num,

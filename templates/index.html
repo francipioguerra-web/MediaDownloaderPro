@@ -53,6 +53,11 @@
     --nav-height: 72px;
     --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
 
+    /* Variabili Card Espansione Orizzontale */
+    --poster-w: 210px;   /* larghezza card a riposo */
+    --extra-w:  340px;   /* larghezza pannello info (allargato per massima leggibilità testo) */
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+
     /* Aliases for backwards compatibility with modals and existing views */
     --bg-main: var(--bg-base);
     --bg-card: var(--bg-surface);
@@ -377,11 +382,11 @@
   .row {
     display: flex; gap: var(--space-4);
     overflow-x: auto;
-    overflow-y: hidden !important;
+    overflow-y: visible;
     overscroll-behavior-x: contain;
-    scroll-snap-type: x proximity;
+    scroll-snap-type: none !important; /* Rimosso snap per prevenire glitch e flicker */
     scroll-padding-inline: var(--space-8);
-    padding: 22px var(--space-8) 26px;
+    padding: 24px var(--space-8) 34px;
     margin-top: -12px;
     margin-bottom: -12px;
     scrollbar-width: none;
@@ -406,58 +411,346 @@
   }
   .row::-webkit-scrollbar { display: none; }
 
-  /* EFFETTO RIFLETTORI (SPOTLIGHT) SULLE CARD */
+  /* EFFETTO RIFLETTORI (SPOTLIGHT) & HOVER EXPANSION SULLE CARD */
   .row .card {
-    transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1),
-                transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+    position: relative;
+    z-index: 1;
+    flex: 0 0 auto;
+    width: var(--poster-w);
+    cursor: pointer;
+    user-select: none;
+    outline: none;
+    scroll-snap-align: none !important;
+    will-change: width;
+
+    /* 0.08s di ritardo solo alla CHIUSURA:
+       evita l'effetto "treno" passando veloce tra le card */
+    transition: width 0.45s var(--ease) 0.08s,
+                opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1),
                 filter 0.35s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .row .card.is-dimmed {
-    opacity: 0.55;
+    opacity: 0.52;
     filter: brightness(0.65) saturate(0.85);
-    transform: scale(0.94);
   }
   .row .card.is-spotlight {
     opacity: 1;
     filter: brightness(1) saturate(1);
-    transform: scale(1);
   }
   .row .card:hover {
+    width: calc(var(--poster-w) + var(--extra-w)) !important; /* ← qui si allunga */
+    z-index: 40 !important;          /* galleggia sopra le vicine */
     opacity: 1 !important;
-    filter: brightness(1.06) saturate(1.1) !important;
-    transform: scale(1.04) !important;
-    z-index: 10;
+    filter: brightness(1.02) saturate(1.05) !important;
+    transition-delay: 0s !important; /* apertura immediata */
+    scroll-snap-align: none !important;
   }
 
-  /* ===== 6. CARD ===== */
+  /* ===== 6. CARD (STRUTTURA & ANIMAZIONE) ===== */
   .card {
-    flex-shrink: 0;
-    width: clamp(150px, 15vw, 195px);
-    scroll-snap-align: start;
+    position: relative;
+    z-index: 1;
+    flex: 0 0 auto;
+    width: var(--poster-w);
     cursor: pointer;
     user-select: none;
     outline: none;
-    transition: transform var(--transition), filter var(--transition), opacity var(--transition);
+    transition: width 0.45s var(--ease) 0.08s, transform var(--transition), filter var(--transition), opacity var(--transition);
+    will-change: width;
   }
-  .card__media {
+  .card:hover {
+    transition-delay: 0s;
+  }
+
+  /* === Il corpo contiene sfondo, poster + info, affiancati === */
+  .card-corpo {
     position: relative;
-    border-radius: var(--radius-card);
+    display: flex;
+    align-items: stretch;
+    height: calc(var(--poster-w) * 1.5);
+    border-radius: 16px;
+    overflow: hidden;
+    background: #0d0e14;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
+    transition: box-shadow 0.35s ease, border-color 0.35s ease, transform 0.35s var(--ease);
+    will-change: transform, box-shadow;
+  }
+
+  .card:hover .card-corpo {
+    transform: translateY(-6px);  /* si solleva dolcemente */
+    border-color: rgba(255, 255, 255, 0.22);
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.85), 0 0 1px rgba(255, 255, 255, 0.12);
+  }
+
+  /* === Immagine di sfondo che riempie tutta la card con effetto scrim orizzontale come nell'header === */
+  .card-bg-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .card-bg-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 25%;
+    transition: transform 0.5s var(--ease), opacity 0.35s ease;
+    opacity: 0.52;
+    filter: brightness(0.85);
+  }
+  .card:hover .card-bg-img {
+    transform: scale(1.05);
+    opacity: 0.72;
+  }
+  .card-scrim-horizontal {
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(to right, rgba(11, 12, 18, 0.05) 0%, rgba(11, 12, 18, 0.38) 30%, rgba(11, 12, 18, 0.88) 55%, rgba(11, 12, 18, 0.98) 78%, #0b0c12 100%),
+      linear-gradient(to top, rgba(11, 12, 18, 0.82) 0%, transparent 38%);
+    pointer-events: none;
+  }
+
+  /* === Poster: larghezza FISSA, non si deforma mai === */
+  .card-poster {
+    position: relative;
+    z-index: 1;
+    flex: 0 0 var(--poster-w);
+    width: var(--poster-w);
+    height: 100%;
+    min-width: 0;
     overflow: hidden;
     background: var(--bg-surface);
-    box-shadow: 0 0 0 1px rgb(255 255 255 / 0.05);
-    transition: box-shadow var(--transition);
   }
-  .card:hover .card__media { box-shadow: 0 10px 28px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.12); }
-  .card__poster {
-    aspect-ratio: 2 / 3; width: 100%;
+
+  .card-poster img {
+    width: 100%;
+    height: 100%;
     object-fit: cover;
-    transition: transform 400ms cubic-bezier(0.22, 1, 0.36, 1);
+    display: block;
+    transition: transform 0.5s var(--ease);
   }
-  .card:hover .card__poster { transform: scale(1.06); }
+
+  .card:hover .card-poster img {
+    transform: scale(1.05);
+  }
+
+  /* Gradient sfumato sul bordo destro del poster verso lo scrim orizzontale */
+  .card-poster::after {
+    content: '';
+    position: absolute;
+    top: 0; right: 0; bottom: 0;
+    width: 36px;
+    background: linear-gradient(to right, transparent, rgba(11, 12, 18, 0.92));
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* === Pannello info: FLUIDO (flex: 1).
+       Non anima nulla di suo: si "riempie" nello spazio
+       che la card gli fa guadagnare, e il contenuto sfuma === */
+  .card-extra {
+    position: relative;
+    z-index: 2;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background: transparent;
+    padding: 0;
+    opacity: 0;
+    pointer-events: none;
+    box-sizing: border-box;
+    transition: opacity 0.3s 0.06s, padding 0.45s var(--ease);
+  }
+
+  .card:hover .card-extra {
+    padding: 16px 20px 14px;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .card-extra-content {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    box-sizing: border-box;
+    gap: 8px;
+  }
+
+  .card-extra-title {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #ffffff;
+    line-height: 1.25;
+    margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    letter-spacing: -0.2px;
+    word-break: break-word;
+  }
+
+  .card-extra-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    font-size: 0.72rem;
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .card-extra-badge {
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.12);
+    color: #f3f4f6;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+
+  .card-extra-year, .card-extra-duration {
+    color: #9ca3af;
+    font-size: 0.72rem;
+  }
+
+  .card-extra-score {
+    color: #facc15;
+    font-weight: 700;
+    font-size: 0.72rem;
+  }
+
+  .card-extra-hd {
+    font-size: 0.62rem;
+    padding: 1px 4px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 3px;
+    color: #e5e7eb;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .card-extra-genres {
+    color: #9ca3af;
+    font-size: 0.72rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin: 0;
+  }
+
+  .card-extra-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .card-extra-plot {
+    font-size: 0.76rem;
+    line-height: 1.45;
+    color: #c5cad6;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin: 0;
+    word-break: break-word;
+  }
+
+  .card-extra-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: auto;
+    padding-top: 6px;
+  }
+
+  .card-extra-play-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #ffffff;
+    color: #0b0b10;
+    border: none;
+    border-radius: 999px;
+    padding: 7px 16px 7px 12px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.2s, box-shadow 0.2s, color 0.2s;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  }
+
+  .card-extra-play-btn:hover {
+    background: #e50914;
+    color: #ffffff;
+    transform: scale(1.05);
+    box-shadow: 0 4px 16px rgba(229, 9, 20, 0.5);
+  }
+
+  .card-extra-play-btn svg {
+    flex-shrink: 0;
+  }
+
+  .card-extra-actions .icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+    cursor: pointer;
+    padding: 0;
+    transition: background 0.2s, border-color 0.2s, transform 0.2s;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+
+  .card-extra-actions .icon-btn:hover {
+    background: rgba(255, 255, 255, 0.24);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: scale(1.1);
+  }
+
+  .card-extra-actions .card-btn-hover-fav.active {
+    background: rgba(229, 9, 20, 0.28);
+    border-color: rgba(229, 9, 20, 0.7);
+  }
+
+  .card-extra-actions .card-btn-hover-wp:hover {
+    background: rgba(124, 58, 237, 0.4);
+    border-color: rgba(167, 139, 250, 0.8);
+  }
+
+  /* Info titolo sotto la card a riposo */
   .card__info {
-    padding-top: 5px;
-    transition: opacity 180ms ease;
+    padding-top: 6px;
+    transition: opacity 0.2s ease;
   }
+
+  .card:hover .card__info {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
   .card__title {
     padding: 0 var(--space-1);
     font-weight: 700; font-size: 0.88rem;
@@ -465,13 +758,7 @@
     color: #ffffff;
     line-height: 1.25;
   }
-  .card__submeta {
-    display: none !important;
-  }
-  .card:hover .card__info,
-  .card:focus-within .card__info {
-    opacity: 0.2;
-  }
+
   .card__badge {
     position: absolute; top: 6px; left: 6px;
     padding: 2px 6px; border-radius: 4px;
@@ -483,114 +770,75 @@
     letter-spacing: 0.4px;
     color: #ffffff;
     transition: opacity 160ms ease;
-    z-index: 1;
+    z-index: 2;
   }
-  .card:hover .card__badge,
-  .card:focus-within .card__badge {
+
+  .card:hover .card__badge {
     opacity: 0;
     visibility: hidden;
   }
+
   .card__ribbon {
     position: absolute; bottom: 0; inset-inline: 0;
     padding: var(--space-2); background: var(--accent);
     text-align: center; font-size: 0.78rem; font-weight: 800;
+    z-index: 2;
   }
 
-  /* ===== 7. OVERLAY INFO (l'unico effetto hover) ===== */
-  .card__overlay {
-    position: absolute; inset: 0; z-index: 2;
-    display: flex; flex-direction: column; gap: 6px;
-    padding: var(--space-4);
-    background: linear-gradient(to top, rgb(6 6 10 / 0.97) 32%, rgb(6 6 10 / 0.82) 68%, rgb(6 6 10 / 0.45));
+  /* Overlay per visualizzazioni a Griglia (Archivio, Categorie) */
+  .card__grid-overlay {
+    display: none;
+  }
+  .media-grid .card .card__grid-overlay {
+    display: flex;
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(6, 6, 10, 0.95) 20%, rgba(6, 6, 10, 0.5) 60%, transparent 100%);
     opacity: 0;
     visibility: hidden;
-    transition: opacity var(--transition), visibility 0s linear var(--transition);
-  }
-  .card__overlay > * {
-    transform: translateY(10px);
-    transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
-  }
-  .card__overlay > *:nth-child(2) { transition-delay: 30ms; }
-  .card__overlay > *:nth-child(3) { transition-delay: 55ms; }
-  .card__overlay > *:nth-child(4) { transition-delay: 80ms; }
-  .card__overlay > *:nth-child(5) { transition-delay: 100ms; }
-
-  @media (hover: hover) {
-    .card:hover .card__overlay { opacity: 1; visibility: visible; transition-delay: 120ms, 0s; }
-    .card:hover .card__overlay > * { transform: translateY(0); }
-  }
-  .card:focus-within .card__overlay,
-  .card:focus .card__overlay { opacity: 1; visibility: visible; }
-  .card:focus .card__overlay > * { transform: translateY(0); }
-
-  .card__overlay-title { font-size: 0.96rem; font-weight: 800; line-height: 1.22; color: #fff; }
-  .card__meta { display: flex; gap: 6px; flex-wrap: wrap; }
-  .card__meta span {
-    padding: 2px 7px; border-radius: 6px;
-    border: 1px solid rgb(255 255 255 / 0.22);
-    color: #d6d9e0; font-size: 0.68rem; font-weight: 600;
-  }
-  .card__genres { color: var(--text-secondary); font-size: 0.74rem; font-weight: 600; }
-  .card__plot {
-    font-size: 0.76rem; line-height: 1.42; color: #cfd2da;
-    display: -webkit-box; -webkit-line-clamp: 4; line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
-    min-height: 4.2em;
-  }
-  .card__actions {
-    margin-top: auto;
-    display: flex;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+    flex-direction: row;
     align-items: center;
+    justify-content: center;
+    padding: 14px;
     gap: 8px;
-    padding-top: 4px;
+    z-index: 3;
   }
-  .card__actions .icon-btn {
+  .media-grid .card:hover .card__grid-overlay {
+    opacity: 1;
+    visibility: visible;
+  }
+  .media-grid .card .card__grid-overlay .icon-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0;
-    margin: 0;
-    line-height: 0;
-    box-sizing: border-box;
-    width: 36px;
-    height: 36px;
-    min-width: 36px;
-    min-height: 36px;
-    border-radius: 50%;
-    border: 1px solid rgb(255 255 255 / 0.32);
-    background: rgb(255 255 255 / 0.14);
-    color: #fff;
-    cursor: pointer;
-    transition: background var(--transition), transform var(--transition), border-color var(--transition);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
   }
-  .card__actions .icon-btn svg {
-    display: block;
-    margin: 0 auto;
-    flex-shrink: 0;
-    pointer-events: none;
-  }
-  .card__actions .icon-btn:hover {
-    background: rgb(255 255 255 / 0.28);
-    border-color: rgb(255 255 255 / 0.6);
-    transform: scale(1.1);
-  }
-  .card__actions .btn-play {
+  .media-grid .card .card__grid-overlay .btn-play {
     background: #fff;
-    color: #0b0b0f;
-    border-color: #fff;
-    box-shadow: 0 4px 14px rgb(0 0 0 / 0.45);
+    color: #000;
   }
-  .card__actions .btn-play:hover {
-    background: var(--accent);
-    color: #fff;
-    border-color: var(--accent);
-    transform: scale(1.14);
-    box-shadow: 0 6px 18px rgba(229, 9, 20, 0.55);
+
+  .media-grid .card {
+    width: 100% !important;
+    flex: none !important;
   }
-  .card__actions .card-btn-hover-fav.active {
-    background: rgba(229, 9, 20, 0.25);
-    border-color: rgba(229, 9, 20, 0.6);
+  .media-grid .card .card-corpo {
+    height: auto !important;
+    aspect-ratio: 2 / 3 !important;
+  }
+  .media-grid .card .card-poster {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+  }
+  .media-grid .card .card-extra {
+    display: none !important;
   }
 
   /* ===== WATCHPARTY STYLES ===== */
@@ -874,11 +1122,10 @@
     margin-bottom: -24px !important;
   }
   .rank-card {
-    display: grid;
-    grid-template-columns: auto 1fr;
+    display: flex;
     align-items: flex-end;
     flex-shrink: 0;
-    scroll-snap-align: start;
+    scroll-snap-align: none !important;
     overflow: visible !important;
     position: relative;
     padding-top: 14px;
@@ -888,7 +1135,7 @@
     overflow: visible;
   }
   .rank-card:hover {
-    z-index: 10;
+    z-index: 40;
   }
   .rank-card__number {
     font-size: clamp(6rem, 10vw, 10rem);
@@ -911,7 +1158,7 @@
     border: 1px solid rgb(255 255 255 / 0.06);
     cursor: pointer; transition: background var(--transition);
     flex-shrink: 0;
-    scroll-snap-align: start;
+    scroll-snap-align: none !important;
     position: relative;
   }
   .resume-card:hover { background: var(--bg-elevated); }
@@ -1336,18 +1583,24 @@
     }
 
     .modal-card {
-      background: rgba(14, 15, 20, 0.88);
+      background: rgba(14, 15, 20, 0.92);
       backdrop-filter: blur(36px) saturate(190%);
       -webkit-backdrop-filter: blur(36px) saturate(190%);
       border: 1px solid rgba(255, 255, 255, 0.18);
       border-radius: 20px;
-      width: 100%;
-      max-width: 920px;
-      max-height: 90vh;
+      width: min(880px, 92vw);
+      max-width: 880px;
+      max-height: calc(100vh - 48px);
+      margin: auto;
+      box-sizing: border-box;
       overflow-y: auto;
       box-shadow: 0 32px 80px rgba(0, 0, 0, 0.94);
       position: relative;
       transition: max-width 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .modal-card:not(.modal-card--movie) .details-hero-banner {
+      min-height: 290px;
     }
 
     /* WIDER & LARGER MODAL CARD FOR MOVIES TO SHOWCASE THE CINEMATIC VIDEO & CAST */
@@ -2242,16 +2495,77 @@
     }
 
     /* STREAMING COMMUNITY STYLE EPISODES LIST */
+    .episodes-container-wrapper {
+      position: relative;
+      width: 100%;
+      margin-bottom: 14px;
+    }
+
     .episodes-list {
       display: flex;
       flex-direction: column;
       gap: 10px;
-      max-height: 280px;
+      max-height: 220px; /* Limite immediato episodi visibili (~3 episodi) */
       overflow-y: auto;
+      overflow-x: hidden;
       overscroll-behavior: contain !important;
-      padding-right: 4px;
+      padding-right: 6px;
       scrollbar-width: thin;
-      margin-bottom: 14px;
+      margin-bottom: 0;
+      scroll-behavior: smooth;
+    }
+
+    /* OMBRA SFOCATA / SFUMATA IN FONDO ALLA LISTA EPISODI */
+    .episodes-bottom-fade {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 52px;
+      background: linear-gradient(to top, rgba(14, 15, 20, 0.98) 0%, rgba(14, 15, 20, 0.72) 45%, rgba(14, 15, 20, 0.2) 80%, transparent 100%);
+      pointer-events: none;
+      z-index: 4;
+      border-bottom-left-radius: var(--radius-md);
+      border-bottom-right-radius: var(--radius-md);
+      transition: opacity 0.25s ease;
+    }
+
+    /* FRECCETTA VERSO IL BASSO INDICATORE EPISODI SOTTOSTANTI */
+    .episodes-scroll-hint {
+      position: absolute;
+      bottom: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 6;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: rgba(30, 32, 44, 0.88);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      color: #ffffff;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+      animation: bounceEpisodesHint 1.8s infinite ease-in-out;
+      transition: opacity 0.25s ease, transform 0.2s ease, background 0.2s ease;
+    }
+    .episodes-scroll-hint:hover {
+      background: rgba(229, 9, 20, 0.85);
+      border-color: rgba(255, 255, 255, 0.5);
+      transform: translateX(-50%) scale(1.1);
+    }
+    @keyframes bounceEpisodesHint {
+      0%, 100% { transform: translateX(-50%) translateY(0); }
+      50% { transform: translateX(-50%) translateY(4px); }
+    }
+    .episodes-container-wrapper.is-at-bottom .episodes-bottom-fade,
+    .episodes-container-wrapper.is-at-bottom .episodes-scroll-hint {
+      opacity: 0 !important;
+      pointer-events: none !important;
     }
 
     .episode-card {
@@ -5296,6 +5610,26 @@
       }
 
       /* Card Generiche Mobile */
+      .card-corpo {
+        height: auto !important;
+        aspect-ratio: 2 / 3 !important;
+        border-radius: 8px !important;
+      }
+      .card-poster {
+        width: 100% !important;
+        flex: 1 1 100% !important;
+      }
+      .card-poster::after {
+        display: none !important;
+      }
+      .card-extra {
+        display: none !important;
+      }
+      .card__info {
+        opacity: 1 !important;
+        visibility: visible !important;
+        pointer-events: auto !important;
+      }
       .card__media {
         border-radius: 6px !important;
       }
@@ -6611,6 +6945,13 @@
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
       pointer-events: auto !important;
     }
+    .row .card.card-scroll-settle.is-settled {
+      transition: width 0.45s var(--ease) 0.08s, opacity 0.35s ease, filter 0.35s ease !important;
+      transition-delay: 0.08s !important;
+    }
+    .row .card.card-scroll-settle.is-settled:hover {
+      transition-delay: 0s !important;
+    }
 
     /* ROW SECTION HEADER SCROLL REVEAL */
     .row-section-scroll-reveal .row-section__header {
@@ -7432,7 +7773,15 @@
           </select>
         </div>
         <div class="modal-options-title" style="margin-top: 18px; margin-bottom: 12px; font-size: 0.85rem; letter-spacing: 0.5px;">Episodi Disponibili:</div>
-        <div id="episodes-container" class="episodes-list"></div>
+        <div class="episodes-container-wrapper" id="episodes-container-wrapper">
+          <div id="episodes-container" class="episodes-list"></div>
+          <div class="episodes-bottom-fade" id="episodes-bottom-fade"></div>
+          <button class="episodes-scroll-hint" id="episodes-scroll-hint" type="button" aria-label="Mostra altri episodi" title="Mostra altri episodi">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+        </div>
 
         <!-- CONFIRM BAR FOR TV SERIES MULTI-DOWNLOAD -->
         <div id="series-dl-confirm-bar" class="series-dl-confirm-bar hidden">
@@ -10115,6 +10464,17 @@
       }
 
       // -------------------------------------------------------------
+      // IMAGE QUALITY OPTIMIZATION HELPER (Lowers bandwidth and avoids lag)
+      // -------------------------------------------------------------
+      function getOptimizedPoster(url) {
+        if (!url || typeof url !== 'string') return url || '';
+        if (url.includes('image.tmdb.org/t/p/')) {
+          return url.replace(/\/t\/p\/(original|w780|w500)/, '/t/p/w342');
+        }
+        return url;
+      }
+
+      // -------------------------------------------------------------
       // MEDIA CARD BUILDER & GESTURES (TOUCH, DRAG-TO-ACTION, CLICK)
       // -------------------------------------------------------------
       function createMediaCard(item, rankNumber = null) {
@@ -10157,36 +10517,74 @@
           ? titlePlotCache.get(item.id)
           : ((item.plot && item.plot !== 'Nessuna trama disponibile.' && item.plot !== 'Trama non disponibile.' && item.plot.length > 25) ? item.plot : 'Caricamento trama...');
 
-        card.innerHTML = `
-          <div class="card__media">
-            <img class="card__poster" src="${item.poster || 'https://via.placeholder.com/400x600'}" alt="${cleanName}" loading="lazy">
-            <span class="card__badge">${badgeType}</span>
-            ${ribbonHtml}
+        const bgImgUrl = getOptimizedPoster(item.backdrop || item.cover || item.poster || '');
+        const posterImgUrl = getOptimizedPoster(item.poster || 'https://via.placeholder.com/342x513');
 
-            <!-- overlay info: visibile su hover / focus -->
-            <div class="card__overlay">
-              <h3 class="card__overlay-title">${cleanName}</h3>
-              <div class="card__meta">
-                ${metaSpans}
-              </div>
-              ${genres ? `<p class="card__genres">${genres}</p>` : ''}
-              <p class="card__plot">${decodeHtml(initialPlot)}</p>
-              <div class="card__actions">
+        card.innerHTML = `
+          <div class="card-corpo">
+            <!-- Immagine di sfondo che riempie tutta la card con effetto scrim orizzontale come nell'header -->
+            <div class="card-bg-layer">
+              <img class="card-bg-img" src="${bgImgUrl}" alt="" loading="lazy">
+              <div class="card-scrim-horizontal"></div>
+            </div>
+
+            <!-- Poster fisso con dissolvenza laterale -->
+            <div class="card-poster">
+              <img class="card__poster" src="${posterImgUrl}" alt="${cleanName}" loading="lazy">
+              <span class="card__badge">${badgeType}</span>
+              ${ribbonHtml}
+              <!-- Overlay compatto per vista a griglia -->
+              <div class="card__grid-overlay">
                 <button class="icon-btn btn-play card-btn-hover-play" data-action="play" aria-label="Riproduci ${cleanName}" title="Riproduci Subito">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7 5l12 7-12 7z"/></svg>
-                </button>
-                <button class="icon-btn card-btn-hover-wp" data-action="watchparty" aria-label="WatchParty con ${cleanName}" title="WatchParty">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"></circle><path d="M3.5 20c.5-3.5 2.4-5.5 5.5-5.5s5 2 5.5 5.5"></path><path d="M16 5.5a3 3 0 0 1 0 5.8"></path><path d="M17.5 14.5c1.8.5 2.8 2.1 3 4.2"></path></svg>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7 5l12 7-12 7z"/></svg>
                 </button>
                 <button class="icon-btn card-btn-hover-fav ${isFav ? 'active' : ''}" data-action="favorite" aria-label="Aggiungi ai Preferiti" title="${isFav ? 'Rimuovi dai Preferiti' : 'Aggiungi ai Preferiti'}">
-                  <svg class="fav-icon" width="18" height="18" viewBox="0 0 24 24" fill="${favFill}" stroke="${favStroke}" stroke-width="2"><path d="M12 21C7 16.5 3 13 3 8.8 3 6 5.2 4 7.8 4c1.7 0 3.3.9 4.2 2.3C12.9 4.9 14.5 4 16.2 4 18.8 4 21 6 21 8.8c0 4.2-4 7.7-9 12.2z"/></svg>
+                  <svg class="fav-icon" width="16" height="16" viewBox="0 0 24 24" fill="${favFill}" stroke="${favStroke}" stroke-width="2"><path d="M12 21C7 16.5 3 13 3 8.8 3 6 5.2 4 7.8 4c1.7 0 3.3.9 4.2 2.3C12.9 4.9 14.5 4 16.2 4 18.8 4 21 6 21 8.8c0 4.2-4 7.7-9 12.2z"/></svg>
                 </button>
-                ${dlBtnHtml}
                 <button class="icon-btn card-btn-hover-info" data-action="info" aria-label="Dettagli ed Episodi" title="Dettagli ed Episodi">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M12 11v5"/></svg>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M12 11v5"/></svg>
                 </button>
               </div>
             </div>
+
+            <!-- Pannello info che si espande orizzontalmente su hover -->
+            <div class="card-extra">
+              <div class="card-extra-content">
+                <div class="card-extra-header">
+                  <h3 class="card-extra-title" title="${cleanName}">${cleanName}</h3>
+                  <div class="card-extra-meta">
+                    <span class="card-extra-badge">${badgeType}</span>
+                    ${year ? `<span class="card-extra-year card__meta-year">${year}</span>` : ''}
+                    ${duration ? `<span class="card-extra-duration">${duration}</span>` : ''}
+                    ${score ? `<span class="card-extra-score score">${score}</span>` : ''}
+                    <span class="card-extra-hd">HD</span>
+                  </div>
+                  ${genres ? `<div class="card-extra-genres">${genres}</div>` : ''}
+                </div>
+
+                <div class="card-extra-body">
+                  <p class="card-extra-plot card__plot">${decodeHtml(initialPlot)}</p>
+                </div>
+
+                <div class="card-extra-actions">
+                  <button class="card-extra-play-btn btn-play card-btn-hover-play" data-action="play" aria-label="Riproduci ${cleanName}" title="Riproduci Subito">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 5l12 7-12 7z"/></svg>
+                    <span>Riproduci</span>
+                  </button>
+                  <button class="icon-btn card-btn-hover-wp" data-action="watchparty" aria-label="WatchParty con ${cleanName}" title="WatchParty">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"></circle><path d="M3.5 20c.5-3.5 2.4-5.5 5.5-5.5s5 2 5.5 5.5"></path><path d="M16 5.5a3 3 0 0 1 0 5.8"></path><path d="M17.5 14.5c1.8.5 2.8 2.1 3 4.2"></path></svg>
+                  </button>
+                  <button class="icon-btn card-btn-hover-fav ${isFav ? 'active' : ''}" data-action="favorite" aria-label="Aggiungi ai Preferiti" title="${isFav ? 'Rimuovi dai Preferiti' : 'Aggiungi ai Preferiti'}">
+                    <svg class="fav-icon" width="15" height="15" viewBox="0 0 24 24" fill="${favFill}" stroke="${favStroke}" stroke-width="2"><path d="M12 21C7 16.5 3 13 3 8.8 3 6 5.2 4 7.8 4c1.7 0 3.3.9 4.2 2.3C12.9 4.9 14.5 4 16.2 4 18.8 4 21 6 21 8.8c0 4.2-4 7.7-9 12.2z"/></svg>
+                  </button>
+                  ${dlBtnHtml}
+                  <button class="icon-btn card-btn-hover-info" data-action="info" aria-label="Dettagli ed Episodi" title="Dettagli ed Episodi">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M12 11v5"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
           <div class="card__info">
             <h3 class="card__title">${cleanName}</h3>
           </div>
@@ -10196,6 +10594,7 @@
         card.addEventListener('mouseenter', () => {
           const plotEl = card.querySelector('.card__plot');
           ensureItemPlot(item, plotEl, card);
+
           if (typeof onMediaCardMouseEnter === 'function') {
             onMediaCardMouseEnter(card, item, rankNumber);
           }
@@ -11099,147 +11498,8 @@
 
       function loadDetailTrailer(title) {
         stopDetailTrailer();
-        if (!title) return;
-
-        const cleanTitle = title.replace(/\s*\(\d{4}\).*/, '').trim();
-        if (!cleanTitle) return;
-
-        const container = document.getElementById('detailVideoContainer');
-        if (!container) return;
-
-        currentDetailTrailerTitle = cleanTitle;
-
-        // Piccolo delay di 300ms per non impattare l'apertura del modale
-        detailTrailerTimer = setTimeout(async () => {
-          if (currentDetailTrailerTitle !== cleanTitle) return;
-
-          try {
-            detailTrailerAbortCtrl = new AbortController();
-            const res = await fetch(`/api/trailer?title=${encodeURIComponent(cleanTitle)}`, {
-              signal: detailTrailerAbortCtrl.signal
-            });
-            const data = await res.json();
-
-            // Se non c'è trailer o modale cambiato, lascia la splendida immagine backdrop in alta risoluzione
-            if (!data || !data.success || !data.video_id || currentDetailTrailerTitle !== cleanTitle) {
-              return;
-            }
-
-            const vid = data.video_id;
-            const targetDiv = document.createElement('div');
-            targetDiv.id = 'detailYtPlayerFrame';
-            container.innerHTML = '';
-            container.appendChild(targetDiv);
-
-            let hasRevealed = false;
-
-            const safetyTimer = setTimeout(() => {
-              if (!hasRevealed && currentDetailTrailerTitle === cleanTitle) {
-                stopDetailTrailer();
-              }
-            }, 8000);
-
-            function startDetailMonitoring(player) {
-              if (detailPollInterval) clearInterval(detailPollInterval);
-              detailPollInterval = setInterval(() => {
-                if (currentDetailTrailerTitle !== cleanTitle || !player) {
-                  clearInterval(detailPollInterval);
-                  detailPollInterval = null;
-                  return;
-                }
-                try {
-                  const curr = typeof player.getCurrentTime === 'function' ? player.getCurrentTime() : 0;
-                  const dur = typeof player.getDuration === 'function' ? player.getDuration() : 0;
-
-                  // Mostra il video SOLO quando la riproduzione è avviata e sono passati 2.6 secondi effettivi
-                  // In questo modo il pulsante play iniziale è sparito al 100% prima che il video diventi visibile
-                  if (!hasRevealed && curr >= 2.6) {
-                    hasRevealed = true;
-                    clearTimeout(safetyTimer);
-                    container.classList.add('is-active');
-                  }
-
-                  // Loop senza interruzioni prima della fine
-                  if (dur > 6 && curr >= dur - 0.8) {
-                    player.seekTo(0, true);
-                  }
-                } catch(err) {}
-              }, 120);
-            }
-
-            if (window.YT && window.YT.Player) {
-              detailYtPlayer = new YT.Player('detailYtPlayerFrame', {
-                videoId: vid,
-                playerVars: {
-                  autoplay: 1,
-                  mute: 1,
-                  controls: 0,
-                  disablekb: 1,
-                  enablejsapi: 1,
-                  fs: 0,
-                  iv_load_policy: 3,
-                  modestbranding: 1,
-                  playsinline: 1,
-                  rel: 0,
-                  showinfo: 0,
-                  autohide: 1,
-                  origin: window.location.origin
-                },
-                events: {
-                  onReady: (e) => {
-                    try {
-                      e.target.mute();
-                      e.target.playVideo();
-                      startDetailMonitoring(e.target);
-                    } catch(err) {}
-                  },
-                  onStateChange: (e) => {
-                    if (e.data === 1) {
-                      startDetailMonitoring(e.target);
-                    } else if (e.data === 0) {
-                      container.classList.remove('is-active');
-                      hasRevealed = false;
-                      try {
-                        e.target.seekTo(0, true);
-                        e.target.playVideo();
-                      } catch(err) {}
-                    } else if (e.data === 2) {
-                      try { e.target.playVideo(); } catch(err) {}
-                    }
-                  },
-                  onError: () => {
-                    clearTimeout(safetyTimer);
-                    stopDetailTrailer();
-                  }
-                }
-              });
-            } else {
-              const iframe = document.createElement('iframe');
-              iframe.className = 'details-hero-video-iframe';
-              iframe.src = `https://www.youtube-nocookie.com/embed/${vid}?autoplay=1&mute=1&controls=0&playsinline=1&enablejsapi=1&showinfo=0&rel=0&iv_load_policy=3&modestbranding=1&disablekb=1&fs=0`;
-              iframe.allow = 'autoplay; encrypted-media';
-              iframe.frameBorder = '0';
-              container.innerHTML = '';
-              container.appendChild(iframe);
-
-              const msgHandler = (ev) => {
-                try {
-                  const d = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data;
-                  if (d && d.event === 'infoDelivery' && d.info && d.info.currentTime >= 2.6) {
-                    if (!hasRevealed && currentDetailTrailerTitle === cleanTitle) {
-                      hasRevealed = true;
-                      clearTimeout(safetyTimer);
-                      container.classList.add('is-active');
-                    }
-                  }
-                } catch(err) {}
-              };
-              window.addEventListener('message', msgHandler);
-            }
-          } catch(e) {
-            stopDetailTrailer();
-          }
-        }, 300);
+        // Video trailers completely disabled outside hero header per user request
+        return;
       }
 
       // WIREUP HERO LATERAL CONTROLS & SWIPE GESTURES
@@ -12114,8 +12374,7 @@
           }
         }
 
-        // Avvia trailer video in sottofondo (mantiene l'immagine HD finché non è pronto e nasconde qualsiasi pulsante play)
-        loadDetailTrailer(cleanName);
+        // Video trailer in modal removed per user instructions (video trailer active only in header hero)
 
         if (btnModalDownloadApp) {
           btnModalDownloadApp.style.display = 'flex';
@@ -12447,6 +12706,27 @@
 
           episodesContainer.appendChild(card);
         });
+
+        // Gestione indicatore di scroll verso il basso e ombra sfocata
+        episodesContainer.scrollTop = 0;
+        const updateEpisodesScrollIndicators = () => {
+          const wrapper = episodesContainer.closest('.episodes-container-wrapper');
+          if (!wrapper) return;
+          const atBottom = (episodesContainer.scrollHeight - episodesContainer.scrollTop - episodesContainer.clientHeight) <= 14;
+          const hasOverflow = episodesContainer.scrollHeight > episodesContainer.clientHeight + 10;
+          wrapper.classList.toggle('is-at-bottom', atBottom || !hasOverflow);
+        };
+        episodesContainer.onscroll = updateEpisodesScrollIndicators;
+        requestAnimationFrame(updateEpisodesScrollIndicators);
+        setTimeout(updateEpisodesScrollIndicators, 120);
+
+        const hintBtn = document.getElementById('episodes-scroll-hint');
+        if (hintBtn) {
+          hintBtn.onclick = (e) => {
+            e.stopPropagation();
+            episodesContainer.scrollBy({ top: 160, behavior: 'smooth' });
+          };
+        }
       }
 
       function closeDetails() {
@@ -13350,10 +13630,7 @@
             lowLatencyMode: true,
             backBufferLength: 90,
             enableWebVTT: true,
-            renderTextTracksNatively: true,
-            xhrSetup: function(xhr, url) {
-              try { xhr.setRequestHeader('ngrok-skip-browser-warning', 'true'); } catch(e) {}
-            }
+            renderTextTracksNatively: true
           });
           currentHls.loadSource(m3u8Source);
           currentHls.attachMedia(webVideo);
@@ -16682,6 +16959,10 @@
         if (window.innerWidth < 768) return;
         if (playerModal && !playerModal.classList.contains('hidden')) return;
         if (detailsModal && !detailsModal.classList.contains('hidden')) return;
+
+        // Le card nei caroselli (.row) usano l'effetto espansione orizzontale inline
+        // Non apriamo il portale fluttuante Prime per evitare sovrapposizioni
+        if (card.closest('.row') || card.querySelector('.card-corpo')) return;
 
         if (primeHideTimer) {
           clearTimeout(primeHideTimer);
