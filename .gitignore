@@ -38,3 +38,5 @@ logs/
 current_tunnel.txt
 sc_catalog_cache.json
 *.bak
+*.plist
+service_runner.sh
