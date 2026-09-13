@@ -4,6 +4,23 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>StreamingCommunity Web</title>
+  <script>
+    (function() {
+      const _origFetch = window.fetch;
+      window.fetch = function(url, options = {}) {
+        options = options || {};
+        options.headers = options.headers || {};
+        if (options.headers instanceof Headers) {
+          options.headers.set('ngrok-skip-browser-warning', 'true');
+        } else if (Array.isArray(options.headers)) {
+          options.headers.push(['ngrok-skip-browser-warning', 'true']);
+        } else {
+          options.headers['ngrok-skip-browser-warning'] = 'true';
+        }
+        return _origFetch.call(this, url, options);
+      };
+    })();
+  </script>
 
   <!-- PWA & MOBILE METADATA (IPAD / IPHONE / SAFARI) -->
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -13333,7 +13350,10 @@
             lowLatencyMode: true,
             backBufferLength: 90,
             enableWebVTT: true,
-            renderTextTracksNatively: true
+            renderTextTracksNatively: true,
+            xhrSetup: function(xhr, url) {
+              try { xhr.setRequestHeader('ngrok-skip-browser-warning', 'true'); } catch(e) {}
+            }
           });
           currentHls.loadSource(m3u8Source);
           currentHls.attachMedia(webVideo);
