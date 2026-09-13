@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StreamingCommunity TV Player</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    body { background: #000; color: #fff; width: 100vw; height: 100vh; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    #tv-video-container { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+    video { width: 100%; height: 100%; object-fit: contain; }
+    
+    .tv-overlay {
+      position: absolute;
+      top: 30px;
+      left: 30px;
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 12px 24px;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 10;
+      transition: opacity 0.5s;
+    }
+    .tv-dot { width: 12px; height: 12px; background: #22c55e; border-radius: 50%; box-shadow: 0 0 10px #22c55e; }
+    .tv-title { font-size: 1.4rem; font-weight: 800; color: #fff; }
+    
+    .tv-waiting-box {
+      text-align: center;
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 24px;
+      padding: 48px 40px;
+      max-width: 550px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+    }
+    .tv-waiting-box h1 { font-size: 2rem; font-weight: 800; margin-bottom: 12px; color: #6366f1; }
+    .tv-waiting-box p { font-size: 1.1rem; color: #94a3b8; line-height: 1.6; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div id="tv-video-container">
+    <div id="tv-overlay" class="tv-overlay hidden">
+      <div class="tv-dot"></div>
+      <div id="tv-title" class="tv-title">In riproduzione da Mac</div>
+    </div>
+
+    <video id="tv-player" autoplay playsinline controls></video>
+
+    <div id="tv-waiting" class="tv-waiting-box">
+      <div style="font-size: 56px; margin-bottom: 16px;">📺</div>
+      <h1>StreamingCommunity TV</h1>
+      <p>TV collegata con successo al tuo Mac!<br>Avvia qualsiasi film o serie TV dall'app per vederlo immediatamente qui a schermo intero.</p>
+    </div>
+  </div>
+
+  <script>
+    const video = document.getElementById('tv-player');
+    const waitingBox = document.getElementById('tv-waiting');
+    const overlay = document.getElementById('tv-overlay');
+    const titleEl = document.getElementById('tv-title');
+    let currentHls = null;
+    let currentLoadedUrl = '';
+
+    function loadStream(streamUrl, title) {
+      if (currentLoadedUrl === streamUrl) return;
+      currentLoadedUrl = streamUrl;
+
+      waitingBox.classList.add('hidden');
+      overlay.classList.remove('hidden');
+      titleEl.textContent = title || "Riproduzione TV";
+
+      if (currentHls) {
+        currentHls.destroy();
+        currentHls = null;
+      }
+
+      const proxyUrl = '/api/stream/proxy?url=' + encodeURIComponent(streamUrl);
+
+      if (Hls.isSupported()) {
+        currentHls = new Hls({ enableWorker: true, lowLatencyMode: true });
+        currentHls.loadSource(proxyUrl);
+        currentHls.attachMedia(video);
+        currentHls.on(Hls.Events.MANIFEST_PARSED, () => {
+          video.play().catch(() => {});
+        });
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = proxyUrl;
+        video.play().catch(() => {});
+      } else {
+        video.src = proxyUrl;
+        video.play().catch(() => {});
+      }
+
+      setTimeout(() => {
+        overlay.style.opacity = '0';
+      }, 5000);
+    }
+
+    // Poll for current playing film
+    async function checkState() {
+      try {
+        const res = await fetch('/api/cast/info');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.current && data.current.url) {
+            loadStream(data.current.url, data.current.title);
+          }
+        }
+      } catch (e) {}
+    }
+
+    setInterval(checkState, 2000);
+    checkState();
+  </script>
+</body>
+</html>
