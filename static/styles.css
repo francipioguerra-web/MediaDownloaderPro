@@ -689,69 +689,167 @@
     .details-hero-actions {
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 10px;
       flex-wrap: wrap;
-      margin-top: 20px;
+      margin-top: 6px !important;
+      margin-bottom: 2px !important;
     }
 
     .details-hero-actions .btn-modal-action {
-      display: grid;
-      place-items: center;
-      width: 50px;
-      height: 50px;
-      min-width: 50px;
-      min-height: 50px;
-      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 0 11px;
+      margin: 0;
+      line-height: 1;
+      box-sizing: border-box;
+      height: 44px;
+      width: 44px;
+      min-width: 44px;
+      max-width: 44px;
+      border-radius: 999px;
       border: 1.5px solid rgba(255, 255, 255, 0.28);
       background: rgba(255, 255, 255, 0.12);
       color: #ffffff;
       cursor: pointer;
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      overflow: hidden;
+      white-space: nowrap;
+      box-shadow: none !important;
+      transition: width 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+                  max-width 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+                  padding 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+                  background 0.2s ease,
+                  border-color 0.2s ease,
+                  color 0.2s ease;
+      will-change: width, max-width;
+    }
+    .details-hero-actions .btn-modal-action .modal-btn-icon,
+    .details-hero-actions .btn-modal-action svg {
+      flex-shrink: 0;
+      display: block;
+      width: 20px;
+      height: 20px;
+      margin: 0;
+      pointer-events: none;
     }
 
-    .details-hero-actions .btn-modal-action:hover {
-      background: rgba(255, 255, 255, 0.28);
-      border-color: rgba(255, 255, 255, 0.6);
-      transform: scale(1.1);
-      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.55);
+    .details-hero-actions .btn-modal-action .btn-modal-label {
+      display: inline-block;
+      opacity: 0;
+      max-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      font-size: 0.86rem;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      line-height: 1;
+      pointer-events: none;
+      margin-left: 0;
+      transition: max-width 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+                  margin-left 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+                  opacity 0.2s ease;
     }
 
+    /* ESPANSIONE ORIZZONTALE SU HOVER (COME LE CARD PRINCIPALI, SENZA OMBRE) */
+    .details-hero-actions .btn-modal-action:hover,
+    .details-hero-actions .btn-modal-action.is-hovered {
+      width: auto !important;
+      min-width: 44px !important;
+      max-width: 220px !important;
+      padding: 0 16px 0 12px !important;
+      background: rgba(255, 255, 255, 0.24) !important;
+      border-color: rgba(255, 255, 255, 0.65) !important;
+      color: #ffffff !important;
+      transform: none !important;
+      box-shadow: none !important;
+    }
+
+    .details-hero-actions .btn-modal-action:hover .btn-modal-label,
+    .details-hero-actions .btn-modal-action.is-hovered .btn-modal-label {
+      max-width: 140px !important;
+      opacity: 1 !important;
+      margin-left: 8px !important;
+      transition: max-width 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+                  margin-left 0.32s cubic-bezier(0.16, 1, 0.3, 1),
+                  opacity 0.22s ease 0.04s;
+    }
+
+    /* TASTO RIPRODUCI - UNIFORMATO AGLI ALTRI PER FORMA, ICONA E VETRO, SENZA OMBRE */
     .details-hero-actions #btn-modal-player-open {
-      width: 58px;
-      height: 58px;
-      min-width: 58px;
-      min-height: 58px;
-      border-radius: 50%;
-      border: none;
-      background: #ffffff;
-      color: #0b0b0f;
-      display: grid;
-      place-items: center;
-      cursor: pointer;
-      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.55);
-      transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+      height: 44px;
+      width: 44px;
+      min-width: 44px;
+      max-width: 44px;
+      padding: 0 11px;
+      border: 1.5px solid rgba(255, 255, 255, 0.32);
+      background: rgba(255, 255, 255, 0.14);
+      color: #ffffff;
+      box-shadow: none !important;
     }
 
-    .details-hero-actions #btn-modal-player-open:hover {
-      background: var(--accent);
-      color: #ffffff;
-      transform: scale(1.14);
-      box-shadow: 0 8px 26px rgba(229, 9, 20, 0.65);
+    .details-hero-actions #btn-modal-player-open:hover,
+    .details-hero-actions #btn-modal-player-open.is-hovered {
+      width: auto !important;
+      max-width: 220px !important;
+      padding: 0 16px 0 12px !important;
+      background: var(--accent) !important;
+      border-color: var(--accent) !important;
+      color: #ffffff !important;
+      transform: none !important;
+      box-shadow: none !important;
+    }
+
+    .details-hero-actions #btn-modal-watchparty {
+      background: rgba(124, 58, 237, 0.18);
+      border-color: rgba(124, 58, 237, 0.45);
+      color: #c4b5fd;
+      box-shadow: none !important;
+    }
+    .details-hero-actions #btn-modal-watchparty:hover,
+    .details-hero-actions #btn-modal-watchparty.is-hovered {
+      width: auto !important;
+      max-width: 220px !important;
+      padding: 0 16px 0 12px !important;
+      background: rgba(124, 58, 237, 0.5) !important;
+      border-color: rgba(167, 139, 250, 0.85) !important;
+      color: #ffffff !important;
+      transform: none !important;
+      box-shadow: none !important;
+    }
+
+    .details-hero-actions #btn-modal-cast-toggle:hover,
+    .details-hero-actions #btn-modal-cast-toggle.is-hovered,
+    .details-hero-actions #btn-modal-download-app:hover,
+    .details-hero-actions #btn-modal-download-app.is-hovered,
+    .details-hero-actions #btn-modal-favorite:hover,
+    .details-hero-actions #btn-modal-favorite.is-hovered {
+      width: auto !important;
+      max-width: 220px !important;
+      padding: 0 16px 0 12px !important;
+      transform: none !important;
+      box-shadow: none !important;
     }
 
     .details-hero-actions #btn-modal-favorite.active {
       background: rgba(229, 9, 20, 0.25);
       border-color: var(--accent);
       color: var(--accent);
+      box-shadow: none !important;
+    }
+
+    .details-hero-actions #btn-modal-cast-toggle.active {
+      background: rgba(229, 9, 20, 0.25);
+      border-color: var(--accent);
+      color: var(--accent);
+      box-shadow: none !important;
     }
 
     .details-body-section {
       position: relative;
       z-index: 3;
-      padding: 24px 32px 32px 32px;
+      padding: 4px 32px 18px 32px !important;
       background: #0e0f14;
       border-radius: 0 0 20px 20px;
     }
@@ -853,7 +951,7 @@
     .season-select-wrapper {
       position: relative;
       width: 100%;
-      margin-bottom: 10px;
+      margin-bottom: 6px;
     }
 
     .season-dropdown-select {
@@ -897,11 +995,11 @@
       display: flex;
       flex-direction: column;
       gap: 10px;
-      max-height: 280px;
+      max-height: min(360px, 44vh);
       overflow-y: auto;
       padding-right: 4px;
       scrollbar-width: thin;
-      margin-bottom: 14px;
+      margin-bottom: 10px;
     }
 
     .episode-card {

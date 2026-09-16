@@ -86,6 +86,7 @@ class Engine:
         ]
         self._cached_active_domain = None
         self.downloads = {}
+        self.processes = {}
         self.canceled_downloads = set()
         self.dates_cache_file = os.path.expanduser('~/.streamingcommunity_dates_cache.json')
         self.dates_cache = self._load_dates_cache()
@@ -1615,7 +1616,7 @@ class Engine:
         except Exception as ex:
             return {"error": f"Errore analisi link: {str(ex)[:100]}"}
 
-    def start_download(self, url, media_type="hls", format_choice="1080p", custom_title=None, custom_headers=None, parent_folder=None):
+    def start_download(self, url, media_type="hls", format_choice="1080p", custom_title=None, custom_headers=None, parent_folder=None, poster=None):
         download_id = f"dl_{int(time.time() * 1000)}"
         safe_title = re.sub(r'[\\/*?:"<>|]', "", custom_title or f"video_{download_id}").strip()
         if not safe_title:
@@ -1633,6 +1634,7 @@ class Engine:
             "download_id": download_id,
             "url": url,
             "title": custom_title or safe_title,
+            "poster": poster,
             "state": "running",
             "phase": "downloading",
             "percent": 0.0,
@@ -1717,6 +1719,8 @@ class Engine:
             safe_title = re.sub(r'[\\/*?:"<>|]', "", d.get("title", "")).strip()
             dest_folder = d.get("folder") or os.path.join(DOWNLOADS_DIR, safe_title)
             proc = d.get("process")
+            if proc is None:
+                proc = self.processes.get(download_id)
             if proc:
                 try:
                     proc.kill()
@@ -1732,6 +1736,7 @@ class Engine:
                 time.sleep(delay)
                 self._cleanup_download_files(safe_title, dest_folder)
             self.downloads.pop(download_id, None)
+            self.processes.pop(download_id, None)
             self.canceled_downloads.discard(download_id)
 
         threading.Thread(target=do_cleanup_stages, daemon=True).start()
@@ -1938,7 +1943,7 @@ class Engine:
 
                     proc = subprocess.Popen(ff_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                     if download_id in self.downloads:
-                        self.downloads[download_id]["process"] = proc
+                        self.processes[download_id] = proc
 
                     t0 = time.time()
                     while proc.poll() is None:
@@ -1979,6 +1984,7 @@ class Engine:
                                 })
 
                     proc.wait()
+                    self.processes.pop(download_id, None)
 
                     if is_cancel_active():
                         self._cleanup_download_files(safe_title, dest_folder)
@@ -1995,9 +2001,10 @@ class Engine:
                                 "folder": dest_folder
                             })
                     else:
-                        raise ex
+                        raise Exception("Download fallito: file di output mancante o troppo piccolo")
 
         except Exception as ex:
+            self.processes.pop(download_id, None)
             if download_id in self.downloads and not self.downloads[download_id].get("cancel_requested") and download_id not in self.canceled_downloads:
                 self.downloads[download_id].update({
                     "state": "error",
@@ -2005,7 +2012,8 @@ class Engine:
                     "error": str(ex)
                 })
     def get_status(self, download_id):
-        return self.downloads.get(download_id, {"state": "error", "error": "Download non trovato."})
+        d = self.downloads.get(download_id, {"state": "error", "error": "Download non trovato."})
+        return {k: v for k, v in d.items() if k != "process"}
 
 engine = Engine()
 
@@ -2672,7 +2680,10 @@ def episode_outro_sc():
     else:
         credits_offset = 50.0
 
-    outro_start = max(10.0, final_duration - credits_offset)
+    if tmdb_runtime and tmdb_runtime > 0:
+        outro_start = tmdb_runtime
+    else:
+        outro_start = max(10.0, final_duration - credits_offset)
 
     return jsonify({
         "success": True,
@@ -2720,7 +2731,8 @@ def start_download():
         format_choice=data.get('format_choice', '1080p'),
         custom_title=data.get('custom_title'),
         custom_headers=data.get('custom_headers'),
-        parent_folder=data.get('parent_folder')
+        parent_folder=data.get('parent_folder'),
+        poster=data.get('poster')
     ))
 
 @app.route('/api/download/pause/<download_id>', methods=['POST'])
@@ -2741,7 +2753,7 @@ def download_status(download_id):
 
 @app.route('/api/download/all', methods=['GET'])
 def get_all_downloads():
-    d_list = list(engine.downloads.values())
+    d_list = [{k: v for k, v in d.items() if k != "process"} for d in engine.downloads.values()]
     d_list.sort(key=lambda x: x.get('download_id', ''), reverse=True)
     return jsonify({"success": True, "downloads": d_list})
 
@@ -3383,6 +3395,15 @@ def watchparty_sync():
                     s["current_time"] = max(0, float(req["current_time"]))
                 if "paused" in req:
                     s["paused"] = bool(req["paused"])
+                if req.get("stream_url"):
+                    s["stream_url"] = str(req["stream_url"])[:2000]
+                if isinstance(req.get("item"), dict):
+                    allowed = ("id", "name", "title", "slug", "type", "poster",
+                               "backdrop", "cover", "current_watch_url",
+                               "current_episode_id", "current_episode_number",
+                               "current_season_number", "current_ep_name",
+                               "current_ep_title")
+                    s["item"] = {k: req["item"].get(k) for k in allowed}
                 s["last_action"] = req.get("action", req.get("last_action", "sync"))
                 s["last_sync"] = int(_time.time() * 1000)
                 save_watchparty_data(data)
