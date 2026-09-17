@@ -33,8 +33,24 @@ HISTORY_FILE = os.path.join(DATA_DIR, "history.json")
 
 DATA_LOCK = threading.RLock()
 
+try:
+    import seed_data
+except ImportError:
+    seed_data = None
+
 def init_file_from_seed(target_path, seed_name, default_val):
-    if not os.path.exists(target_path) or os.path.getsize(target_path) == 0:
+    need_init = not os.path.exists(target_path) or os.path.getsize(target_path) == 0
+    if not need_init:
+        # Also check if it's an empty json
+        try:
+            with open(target_path, "r", encoding="utf-8") as f:
+                content = json.load(f)
+                if isinstance(content, dict) and "profiles" in content and len(content["profiles"]) == 0:
+                    need_init = True
+        except Exception:
+            need_init = True
+
+    if need_init:
         seed_path = os.path.join(SEED_DIR, seed_name)
         if os.path.exists(seed_path):
             try:
@@ -42,6 +58,16 @@ def init_file_from_seed(target_path, seed_name, default_val):
                 return
             except Exception as e:
                 print(f"Error copying seed {seed_name}: {e}")
+        # Fallback to in-memory seed_data if available
+        if seed_data:
+            if seed_name == "profiles.json" and getattr(seed_data, "PROFILES_DATA", None):
+                default_val = seed_data.PROFILES_DATA
+            elif seed_name == "favorites.json" and getattr(seed_data, "FAVORITES_DATA", None):
+                default_val = seed_data.FAVORITES_DATA
+            elif seed_name == "history.json" and getattr(seed_data, "HISTORY_DATA", None):
+                default_val = seed_data.HISTORY_DATA
+            elif seed_name == "dates_cache.json" and getattr(seed_data, "DATES_CACHE_DATA", None):
+                default_val = seed_data.DATES_CACHE_DATA
         try:
             with open(target_path, "w", encoding="utf-8") as f:
                 json.dump(default_val, f, ensure_ascii=False, indent=2)
@@ -241,8 +267,25 @@ def health():
 # ----------------- PROFILES API -----------------
 @app.route('/api/profiles', methods=['GET'])
 def get_profiles():
-    data = read_json(PROFILES_FILE, {"active_profile_id": None, "profiles": []})
-    return jsonify(data)
+    with DATA_LOCK:
+        data = read_json(PROFILES_FILE, {"active_profile_id": None, "profiles": []})
+        if (not data.get("profiles") or len(data.get("profiles", [])) < 2) and seed_data and getattr(seed_data, "PROFILES_DATA", None):
+            data = dict(seed_data.PROFILES_DATA)
+            write_json_safe(PROFILES_FILE, data)
+        
+        sanitized = []
+        for p in data.get("profiles", []):
+            sp = dict(p)
+            sp["has_pin"] = bool(sp.get("pin"))
+            sp.pop("pin", None)
+            sp.pop("history", None)
+            sp.pop("favorites", None)
+            sanitized.append(sp)
+
+        return jsonify({
+            "active_profile_id": data.get("active_profile_id"),
+            "profiles": sanitized
+        })
 
 # ----------------- WATCHPARTY ENDPOINTS -----------------
 @app.route('/api/watchparty/create', methods=['POST'])
@@ -256,7 +299,15 @@ def watchparty_create():
         return jsonify({"success": False, "error": "Parametri mancanti (host_profile_id, guest_profile_id, item)"}), 400
 
     profiles_data = read_json(PROFILES_FILE, {"profiles": []})
+    if (not profiles_data.get("profiles") or len(profiles_data.get("profiles", [])) < 2) and seed_data and getattr(seed_data, "PROFILES_DATA", None):
+        profiles_data = dict(seed_data.PROFILES_DATA)
+        write_json_safe(PROFILES_FILE, profiles_data)
+
     profs = {p.get("id"): p for p in profiles_data.get("profiles", [])}
+    if seed_data and getattr(seed_data, "PROFILES_DATA", None):
+        for sp in seed_data.PROFILES_DATA.get("profiles", []):
+            if sp.get("id") not in profs:
+                profs[sp.get("id")] = sp
 
     host_prof = profs.get(host_profile_id, {})
     guest_prof = profs.get(guest_profile_id, {})
@@ -418,11 +469,26 @@ def watchparty_end():
 @app.route('/api/user_data/bundle', methods=['GET'])
 def get_user_data_bundle():
     try:
+        profiles = read_json(PROFILES_FILE, {"profiles": []})
+        if (not profiles.get("profiles") or len(profiles.get("profiles", [])) < 2) and seed_data and getattr(seed_data, "PROFILES_DATA", None):
+            profiles = dict(seed_data.PROFILES_DATA)
+            write_json_safe(PROFILES_FILE, profiles)
+
+        favorites = read_json(FAVORITES_FILE, {})
+        if not favorites and seed_data and getattr(seed_data, "FAVORITES_DATA", None):
+            favorites = dict(seed_data.FAVORITES_DATA)
+            write_json_safe(FAVORITES_FILE, favorites)
+
+        history = read_json(HISTORY_FILE, [])
+        if not history and seed_data and getattr(seed_data, "HISTORY_DATA", None):
+            history = list(seed_data.HISTORY_DATA)
+            write_json_safe(HISTORY_FILE, history)
+
         return jsonify({
             "success": True,
-            "profiles": read_json(PROFILES_FILE, {"profiles": []}),
-            "favorites": read_json(FAVORITES_FILE, {}),
-            "history": read_json(HISTORY_FILE, [])
+            "profiles": profiles,
+            "favorites": favorites,
+            "history": history
         })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500

@@ -914,9 +914,9 @@
 
   /* WatchParty Invite Modal */
   #modal-watchparty-invite {
-    position: fixed; inset: 0; z-index: 135000;
+    position: fixed; inset: 0; z-index: 350000;
     display: flex; align-items: center; justify-content: center;
-    background: rgba(0,0,0,0.65);
+    background: rgba(0,0,0,0.75);
     backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
     opacity: 0; pointer-events: none;
     transition: opacity 0.3s ease;
@@ -10880,14 +10880,14 @@
         };
       }
 
-      const RENDER_DEFAULT_HUB = 'https://streamingcommunity-web.onrender.com';
+      const RENDER_DEFAULT_HUB = 'https://serverwatchparty.onrender.com';
       function getWatchPartyHubBase() {
         const savedHub = localStorage.getItem('sc_watchparty_hub_url');
         if (savedHub && savedHub.trim()) {
           return savedHub.trim().replace(/\/+$/, '');
         }
-        if (window.location.protocol === 'https:' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
-          return '';
+        if (window.location.protocol === 'https:' && window.location.hostname.includes('onrender.com')) {
+          return window.location.origin;
         }
         return RENDER_DEFAULT_HUB;
       }
@@ -10895,10 +10895,29 @@
       async function wpRequest(path, options = {}) {
         const hubBase = getWatchPartyHubBase();
         const url = hubBase ? `${hubBase}${path}` : `${API_BASE}${path}`;
-        const response = await fetch(url, options);
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || data.success === false) throw new Error(data.error || 'Operazione WatchParty non riuscita');
-        return data;
+        try {
+          const response = await fetch(url, options);
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok || data.success === false) {
+            throw new Error(data.error || 'Operazione WatchParty non riuscita');
+          }
+          return data;
+        } catch (err) {
+          // Fallback between serverwatchparty and streamingcommunity-web if cloud domain fails
+          if (hubBase && hubBase.includes('onrender.com')) {
+            const altHub = hubBase.includes('serverwatchparty')
+              ? 'https://streamingcommunity-web.onrender.com'
+              : 'https://serverwatchparty.onrender.com';
+            try {
+              const fbRes = await fetch(`${altHub}${path}`, options);
+              const fbData = await fbRes.json().catch(() => ({}));
+              if (fbRes.ok && fbData.success !== false) {
+                return fbData;
+              }
+            } catch(e) {}
+          }
+          throw err;
+        }
       }
 
       function closeWatchPartyInvite() {
@@ -11030,11 +11049,41 @@
       }
 
       async function openWatchPartyInvite(item) {
-        if (!currentActiveProfile) { showToast('Scegli prima un profilo'); return; }
-        const guests = availableProfiles.filter(p => p.id !== currentActiveProfile.id);
-        if (!guests.length) { showToast('Crea un altro profilo da invitare'); return; }
+        if (!currentActiveProfile) {
+          showToast('Seleziona prima il tuo profilo per il WatchParty');
+          showProfilesGate(true);
+          return;
+        }
 
-        watchPartyItem = wpItemSnapshot(item);
+        let guests = availableProfiles.filter(p => p.id !== currentActiveProfile.id);
+        if (!guests.length) {
+          await loadProfilesFromServer();
+          guests = availableProfiles.filter(p => p.id !== currentActiveProfile.id);
+        }
+        if (!guests.length) {
+          try {
+            const hub = getWatchPartyHubBase();
+            const rRes = await fetch(`${hub}/api/profiles`);
+            const rData = await rRes.json();
+            if (rData && Array.isArray(rData.profiles) && rData.profiles.length > 0) {
+              availableProfiles = rData.profiles;
+              guests = availableProfiles.filter(p => p.id !== currentActiveProfile.id);
+            }
+          } catch(e) {}
+        }
+
+        if (!guests.length) {
+          showToast('Nessun altro profilo da invitare. Crea un altro profilo in "Gestisci i profili".');
+          return;
+        }
+
+        const targetItem = item || currentActiveItem;
+        if (!targetItem) {
+          showToast('Nessun contenuto selezionato per il WatchParty');
+          return;
+        }
+
+        watchPartyItem = wpItemSnapshot(targetItem);
 
         const isTv = (
           watchPartyItem.type === 'tv' ||
@@ -12207,7 +12256,7 @@
         try {
           const res = await fetch(`${API_BASE}/api/profiles`);
           const data = await res.json();
-          if (data && Array.isArray(data.profiles)) {
+          if (data && Array.isArray(data.profiles) && data.profiles.length > 0) {
             availableProfiles = data.profiles;
             if (data.active_profile_id) {
               const active = availableProfiles.find(p => p.id === data.active_profile_id);
@@ -12215,7 +12264,34 @@
             }
           }
         } catch(e) {
-          console.error('Failed to load profiles:', e);
+          console.error('Failed to load local profiles:', e);
+        }
+
+        // If local profiles has fewer than 2 profiles, fetch from Render Hub
+        if (!availableProfiles || availableProfiles.length < 2) {
+          try {
+            const hub = getWatchPartyHubBase();
+            const rRes = await fetch(`${hub}/api/profiles`);
+            const rData = await rRes.json();
+            if (rData && Array.isArray(rData.profiles) && rData.profiles.length > 0) {
+              availableProfiles = rData.profiles;
+              if (rData.active_profile_id && !currentActiveProfile) {
+                const active = availableProfiles.find(p => p.id === rData.active_profile_id);
+                if (active) currentActiveProfile = active;
+              }
+            }
+          } catch(e) {
+            console.error('Failed to load hub profiles:', e);
+          }
+        }
+
+        // Check if last saved profile id in localStorage matches
+        const savedProfId = localStorage.getItem('sc_last_active_profile_id');
+        if (savedProfId && availableProfiles && availableProfiles.length > 0) {
+          const found = availableProfiles.find(p => p.id === savedProfId);
+          if (found && !found.has_pin) {
+            currentActiveProfile = found;
+          }
         }
       }
 

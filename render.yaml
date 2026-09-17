@@ -1,9 +1,11 @@
 services:
   - type: web
-    name: streamingcommunity-web
-    env: docker
+    name: serverwatchparty
+    env: node
     plan: free
-    dockerfilePath: ./Dockerfile
+    buildCommand: npm install
+    startCommand: node server.js
     envVars:
       - key: PORT
         value: 10000
+

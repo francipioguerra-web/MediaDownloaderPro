@@ -3027,26 +3027,57 @@ profiles_lock = threading.RLock()
 
 def load_profiles_data():
     with profiles_lock:
+        data = None
         for path in [PROFILES_FILE, PROFILES_FILE + ".bak"]:
             if os.path.exists(path):
                 try:
                     with open(path, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                        if isinstance(data, dict) and "profiles" in data and isinstance(data["profiles"], list):
-                            if len(data["profiles"]) > 0 or path == PROFILES_FILE + ".bak":
-                                return data
-                            # If main file has 0 profiles but backup has profiles, prefer backup
-                            if path == PROFILES_FILE and os.path.exists(PROFILES_FILE + ".bak"):
-                                try:
-                                    with open(PROFILES_FILE + ".bak", "r", encoding="utf-8") as fb:
-                                        bak_data = json.load(fb)
-                                        if isinstance(bak_data, dict) and "profiles" in bak_data and len(bak_data["profiles"]) > 0:
-                                            return bak_data
-                                except Exception:
-                                    pass
-                                return data
+                        loaded = json.load(f)
+                        if isinstance(loaded, dict) and "profiles" in loaded and isinstance(loaded["profiles"], list):
+                            if len(loaded["profiles"]) >= 3:
+                                data = loaded
+                                break
+                            elif len(loaded["profiles"]) > 0:
+                                data = loaded
                 except Exception as e:
                     print(f"Error reading profiles data from {path}:", e)
+
+        # Merge or initialize with seed_data if Martina or Francesco are missing
+        try:
+            import seed_data
+            seed_profs = seed_data.PROFILES_DATA.get("profiles", [])
+            if not data or not isinstance(data.get("profiles"), list) or len(data.get("profiles")) == 0:
+                data = dict(seed_data.PROFILES_DATA)
+                save_profiles_data(data)
+                return data
+            else:
+                existing_names = {p.get("name") for p in data.get("profiles", []) if isinstance(p, dict)}
+                existing_ids = {p.get("id") for p in data.get("profiles", []) if isinstance(p, dict)}
+                changed = False
+                for sp in seed_profs:
+                    if sp.get("name") not in existing_names and sp.get("id") not in existing_ids:
+                        data["profiles"].append(sp)
+                        changed = True
+                    else:
+                        for p in data["profiles"]:
+                            if p.get("name") == sp.get("name"):
+                                if not p.get("history") and sp.get("history"):
+                                    p["history"] = sp.get("history")
+                                    changed = True
+                                if not p.get("favorites") and sp.get("favorites"):
+                                    p["favorites"] = sp.get("favorites")
+                                    changed = True
+                                if not p.get("pin") and sp.get("pin"):
+                                    p["pin"] = sp.get("pin")
+                                    changed = True
+                if changed:
+                    save_profiles_data(data)
+                return data
+        except Exception as e:
+            print("Error loading profiles from seed_data:", e)
+
+        if data:
+            return data
         return {
             "active_profile_id": None,
             "profiles": []
