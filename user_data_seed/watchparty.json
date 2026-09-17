@@ -1,0 +1,34 @@
+{
+  "sessions": [
+    {
+      "session_id": "wp_1789651066_b4ecc062",
+      "host_profile_id": "prof_1789248770_e451a8",
+      "host_name": "Test",
+      "host_avatar": "preset:netflix-red",
+      "guest_profile_id": "prof_1789215273_3f776c",
+      "guest_name": "Martina",
+      "guest_avatar": "preset:amber-crown",
+      "item": {
+        "id": "177",
+        "name": "The Mentalist",
+        "title": "The Mentalist",
+        "poster": "https://cdn.streamingcommunityz.academy/images/814845ae-4940-4e0d-bc44-bd99b31fd18d.webp",
+        "backdrop": "https://cdn.streamingcommunityz.academy/images/31ba0914-c0a1-40ba-82d9-c92c3d71d5d9.webp",
+        "slug": "the-mentalist",
+        "type": "tv",
+        "current_watch_url": "https://streamingcommunityz.academy/it/watch/177?e=4606",
+        "current_episode_id": 4606,
+        "current_episode_number": 1,
+        "current_season_number": "1",
+        "current_ep_name": "Episodio 1",
+        "current_ep_title": "Episodio 1 - Episodio 1"
+      },
+      "status": "waiting",
+      "current_time": 0.0,
+      "paused": true,
+      "last_action": null,
+      "last_sync": 1789651066256,
+      "created_at": 1789651066256
+    }
+  ]
+}

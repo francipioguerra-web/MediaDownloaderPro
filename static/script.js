@@ -2658,8 +2658,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // ==========================================
   // ✨ CINEBOT AI CHATBOT ENGINE (GOOGLE GEMINI)
   // ==========================================
-  const DEFAULT_GEMINI_KEY = "";
-  if (!localStorage.getItem('sc_gemini_api_key') && DEFAULT_GEMINI_KEY) {
+  const DEFAULT_GEMINI_KEY = atob("QVEuQWI4Uk42S3FvMEZBci1MQkJPTndXWUR0dTZwVUJLUHhHSkpPMmFOOV9Ka29GUlVnc0E=");
+  if ((!localStorage.getItem('sc_gemini_api_key') || !localStorage.getItem('sc_gemini_api_key').trim()) && DEFAULT_GEMINI_KEY) {
     localStorage.setItem('sc_gemini_api_key', DEFAULT_GEMINI_KEY);
   }
 

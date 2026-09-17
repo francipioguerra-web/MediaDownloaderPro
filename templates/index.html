@@ -5813,8 +5813,13 @@
     /* Smartphone / Mobile Screens (<= 768px) */
     @media (max-width: 768px) {
       /* Safe Area & Body Layout */
+      html {
+        background: #141414 !important;
+      }
       body {
         padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px) + 24px) !important;
+        background: linear-gradient(180deg, #181818 0%, #141414 28%, #101010 100%) !important;
+        background-attachment: fixed !important;
       }
 
       /* Topbar Mobile */
@@ -5901,7 +5906,7 @@
         right: 14px !important;
       }
 
-      /* Rows Mobile: Stile Netflix / Amazon Prime Video con Effetto Riflettori */
+      /* Rows Mobile Base: Stile Netflix / Amazon Prime Video con Effetto Riflettori */
       .row {
         margin-bottom: 20px !important;
         scroll-padding-inline: 14px !important;
@@ -5940,8 +5945,6 @@
         aspect-ratio: 2 / 3 !important;
         border-radius: 8px !important;
         border: 1px solid rgba(255, 255, 255, 0.25) !important;
-      }
-      .card-poster {
         width: 100% !important;
         flex: 1 1 100% !important;
       }
@@ -5952,11 +5955,18 @@
         display: none !important;
       }
 
-      /* Disattiva Hover per prevenire bug su Mobile */
+      /* Disattiva Hover per prevenire bug su Mobile per card normali */
       .card:hover, .row .card:hover {
+        filter: brightness(1) !important;
+      }
+      .row:not(#home-multi-rows .row:not(#track-continue-watching):not(#track-top10)) .card:hover {
         width: 112px !important;
         z-index: 1 !important;
-        filter: brightness(1) !important;
+      }
+      .row:not(#home-multi-rows .row:not(#track-continue-watching):not(#track-top10)) .card:hover .card-extra {
+        display: none !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
       }
       .card:hover .card-corpo {
         transform: none !important;
@@ -5965,10 +5975,490 @@
         transform: none !important;
         filter: none !important;
       }
-      .card:hover .card-extra {
+      /* Le mini-hero tengono sempre visibile il pannello info */
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card:hover .card-extra {
+        display: flex !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+      }
+
+      /* Disattiva completamente l'effetto scroll-settle che nasconde le card con opacity: 0 !important su mobile */
+      .card-scroll-settle:not(.is-settled),
+      .row .card.card-scroll-settle:not(.is-settled),
+      .row .rank-card.card-scroll-settle:not(.is-settled),
+      .row .card.card-scroll-settle.is-settled,
+      .row .rank-card.card-scroll-settle.is-settled {
+        opacity: unset !important;
+        transform: unset !important;
+        box-shadow: unset !important;
+        pointer-events: unset !important;
+        transition: none !important;
+      }
+
+      /* ===== CONTINUA A GUARDARE & TOP 10 SU MOBILE: RIPRISTINO ESATTO COME PRIMA ===== */
+      #section-continue-watching {
+        overflow: visible !important;
+      }
+      #track-continue-watching {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: stretch !important;
+        overflow-x: auto !important;
+        overflow-y: visible !important;
+        height: auto !important;
+        touch-action: pan-x pan-y !important;
+        -webkit-overflow-scrolling: touch !important;
+        padding-top: 10px !important;
+        padding-bottom: 20px !important;
+        margin-bottom: 20px !important;
+        gap: 12px !important;
+      }
+      #track-continue-watching .resume-card {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 8px !important;
+        min-width: 180px !important;
+        width: 180px !important;
+        max-width: 180px !important;
+        flex-shrink: 0 !important;
+        padding: 0 !important;
+        background: transparent !important;
+        border: none !important;
+        position: relative !important;
+        transform: none !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        cursor: pointer !important;
+      }
+      #track-continue-watching .resume-card .resume-card__media,
+      #track-continue-watching .resume-card > div:first-child {
+        position: relative !important;
+        width: 100% !important;
+        aspect-ratio: 16 / 9 !important;
+        border-radius: 10px !important;
+        overflow: hidden !important;
+      }
+      #track-continue-watching .resume-card .resume-card__thumb {
+        width: 100% !important;
+        height: 100% !important;
+        aspect-ratio: 16 / 9 !important;
+        object-fit: cover !important;
+        border-radius: 10px !important;
+        display: block !important;
+      }
+      #track-continue-watching .resume-card .resume-card__info {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 3px !important;
+        width: 100% !important;
+      }
+      #track-continue-watching .resume-card .resume-card__info h3 {
+        font-size: 0.88rem !important;
+        font-weight: 700 !important;
+        color: #fff !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+      }
+      #track-continue-watching .resume-card .resume-card__info p {
+        font-size: 0.74rem !important;
+        color: var(--text-secondary) !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+      }
+      #track-continue-watching .resume-card .resume-card__progress {
+        height: 3px !important;
+        border-radius: 999px !important;
+        background: rgba(255, 255, 255, 0.2) !important;
+        overflow: hidden !important;
+        margin-top: 2px !important;
+      }
+      #track-continue-watching .resume-card .resume-card__progress-fill {
+        height: 100% !important;
+        background: var(--accent) !important;
+      }
+      #track-continue-watching .resume-card .resume-card__meta {
+        display: flex !important;
+        justify-content: space-between !important;
+        font-size: 0.7rem !important;
+        color: var(--text-secondary) !important;
+      }
+      #track-continue-watching .resume-card .resume-card__percent {
+        color: var(--accent) !important;
+        font-weight: 700 !important;
+      }
+
+      #section-top10 {
+        overflow: visible !important;
+      }
+      #track-top10 {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: flex-end !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        height: auto !important;
+        touch-action: pan-x pan-y !important;
+        -webkit-overflow-scrolling: touch !important;
+        padding-top: 36px !important;
+        padding-bottom: 38px !important;
+        margin-top: -24px !important;
+        margin-bottom: -24px !important;
+        gap: 8px !important;
+      }
+      #track-top10 .rank-card {
+        display: flex !important;
+        align-items: flex-end !important;
+        flex-shrink: 0 !important;
+        position: relative !important;
+        overflow: visible !important;
+        padding-top: 14px !important;
+        padding-bottom: 14px !important;
+      }
+      #track-top10 .rank-card .card {
+        position: relative !important;
+        top: auto !important;
+        left: auto !important;
+        width: 112px !important;
+        max-width: 112px !important;
+        height: auto !important;
+        aspect-ratio: unset !important;
+        transform: none !important;
+        opacity: 1 !important;
+        filter: none !important;
+        pointer-events: auto !important;
+        z-index: 2 !important;
+        cursor: pointer !important;
+      }
+      #track-top10 .rank-card__number {
+        font-size: clamp(4.5rem, 14vw, 7rem) !important;
+        font-weight: 900 !important;
+        line-height: 0.8 !important;
+        margin-right: -12px !important;
+        z-index: 1 !important;
+        color: transparent !important;
+        -webkit-text-stroke: 2px rgb(255 255 255 / 0.35) !important;
+        user-select: none !important;
+        pointer-events: none !important;
+        margin-bottom: 8px !important;
+        display: inline-block !important;
+      }
+      #track-top10 .card-corpo {
+        aspect-ratio: 2 / 3 !important;
+        border-radius: 8px !important;
+        border: 1px solid rgba(255, 255, 255, 0.25) !important;
+        width: 100% !important;
+        height: auto !important;
+        background: var(--bg-surface) !important;
+        box-shadow: none !important;
+      }
+      #track-top10 .card-poster {
+        position: relative !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        display: block !important;
+        background: transparent !important;
+      }
+      #track-top10 .card__poster {
+        display: block !important;
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: cover !important;
+      }
+      #track-top10 .card-bg-layer,
+      #track-top10 .card-scrim-horizontal,
+      #track-top10 .card-extra {
         display: none !important;
-        opacity: 0 !important;
-        visibility: hidden !important;
+      }
+
+/* ============================================================= */
+      /* HOME ROWS MOBILE: MINI-HERO SOVRAPPOSTE + SCROLL NATIVO   */
+      /* ============================================================= */
+      #home-multi-rows .row-section:not(#section-continue-watching):not(#section-top10) .row__header,
+      #home-multi-rows .row-section:not(#section-continue-watching):not(#section-top10) .row-section__header {
+        padding: 0 16px 8px !important;
+      }
+      #home-multi-rows .row-section:not(#section-continue-watching):not(#section-top10) .row__title,
+      #home-multi-rows .row-section:not(#section-continue-watching):not(#section-top10) .row-section__header h2 {
+        font-size: 1.15rem !important;
+        font-weight: 800 !important;
+        letter-spacing: -0.2px !important;
+      }
+      #home-multi-rows .row-section:not(#section-continue-watching):not(#section-top10) .row-nav,
+      #home-multi-rows .row-section:not(#section-continue-watching):not(#section-top10) .row-nav__btn {
+        display: none !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) {
+        position: relative !important;
+        display: flex !important;
+        overflow-x: auto !important;
+        overflow-y: visible !important;
+        height: auto !important;
+        padding: 8px 18px 24px !important;
+        margin-bottom: 24px !important;
+        gap: 12px !important;
+        touch-action: pan-x pan-y !important;
+        -webkit-overflow-scrolling: touch !important;
+        scrollbar-width: none !important;
+        scroll-snap-type: x mandatory !important;
+        scroll-padding-inline: 18px !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10)::-webkit-scrollbar {
+        display: none !important;
+      }
+      /* Card mini-hero con effetto di sovraimpressione a carosello: mai nascoste, mai incastrate */
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card {
+        position: relative !important;
+        flex: 0 0 auto !important;
+        width: calc(100vw - 68px) !important;
+        max-width: 360px !important;
+        aspect-ratio: 16 / 9.5 !important;
+        scroll-snap-align: center !important;
+        scroll-snap-stop: always !important;
+        margin-right: 0 !important;
+        cursor: pointer !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        visibility: visible !important;
+        transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card:last-child {
+        margin-right: 0 !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-corpo {
+        position: relative !important;
+        width: 100% !important;
+        height: 100% !important;
+        aspect-ratio: unset !important;
+        border-radius: 18px !important;
+        overflow: hidden !important;
+        background: #090a0f !important;
+        border: 1px solid rgba(255, 255, 255, 0.16) !important;
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.75), 0 0 1px rgba(255, 255, 255, 0.15) !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-bg-layer {
+        display: block !important;
+        position: absolute !important;
+        inset: 0 !important;
+        z-index: 1 !important;
+        overflow: hidden !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-bg-img {
+        display: block !important;
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: cover !important;
+        object-position: center 25% !important;
+        opacity: 1 !important;
+        filter: brightness(1) contrast(1.02) !important;
+        transform: none !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-scrim-horizontal {
+        display: block !important;
+        position: absolute !important;
+        inset: 0 !important;
+        z-index: 2 !important;
+        background:
+          linear-gradient(to bottom, transparent 0%, rgba(8, 9, 13, 0.18) 42%, rgba(8, 9, 13, 0.55) 72%, rgba(8, 9, 13, 0.88) 100%) !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-poster {
+        position: absolute !important;
+        top: 12px !important;
+        left: 12px !important;
+        width: auto !important;
+        height: auto !important;
+        flex: none !important;
+        z-index: 4 !important;
+        background: transparent !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card__poster {
+        display: none !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-poster::after,
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card__grid-overlay,
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card__ribbon {
+        display: none !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card__badge {
+        display: inline-block !important;
+        padding: 4px 11px !important;
+        border-radius: 999px !important;
+        background: rgba(14, 14, 20, 0.78) !important;
+        backdrop-filter: blur(8px) !important;
+        -webkit-backdrop-filter: blur(8px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.22) !important;
+        color: #fff !important;
+        font-size: 0.68rem !important;
+        font-weight: 800 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.05em !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5) !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-extra {
+        display: flex !important;
+        position: absolute !important;
+        inset: 0 !important;
+        z-index: 3 !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
+        padding: 12px 16px 14px !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        background: transparent !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-extra-content {
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
+        height: 100% !important;
+        width: 100% !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-extra-header {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 2px !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-extra-title {
+        font-size: 1.15rem !important;
+        font-weight: 800 !important;
+        color: #fff !important;
+        line-height: 1.2 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 1px 8px rgba(0, 0, 0, 0.5) !important;
+        margin-bottom: 2px !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-extra-meta {
+        display: flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+        font-size: 0.74rem !important;
+        color: var(--text-secondary) !important;
+        flex-wrap: wrap !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-extra-badge {
+        display: none !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-extra-year {
+        color: var(--text-secondary) !important;
+        font-weight: 600 !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-extra-duration {
+        color: var(--text-secondary) !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-extra-score {
+        color: #facc15 !important;
+        font-weight: 700 !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-extra-hd {
+        padding: 1px 5px !important;
+        font-size: 0.62rem !important;
+        font-weight: 800 !important;
+        border-radius: 4px !important;
+        background: rgba(255, 255, 255, 0.16) !important;
+        color: #fff !important;
+        letter-spacing: 0.04em !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-extra-genres {
+        font-size: 0.72rem !important;
+        color: var(--text-muted) !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        display: block !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-extra-body,
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-extra-plot {
+        display: none !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-extra-actions {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        margin-top: auto !important;
+        margin-bottom: 0 !important;
+        pointer-events: auto !important;
+        position: relative !important;
+        z-index: 15 !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-extra-play-btn {
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+        padding: 7px 15px !important;
+        font-size: 0.76rem !important;
+        font-weight: 700 !important;
+        border-radius: 999px !important;
+        background: #ffffff !important;
+        color: #0b0c12 !important;
+        border: none !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+        cursor: pointer !important;
+        pointer-events: auto !important;
+        touch-action: manipulation !important;
+        position: relative !important;
+        z-index: 16 !important;
+        transition: transform 0.15s ease, background 0.15s ease !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-extra-play-btn:active {
+        transform: scale(0.94) !important;
+        background: #e50914 !important;
+        color: #ffffff !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-extra-play-btn svg {
+        width: 12px !important;
+        height: 12px !important;
+        fill: currentColor !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-btn-hover-wp,
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-btn-hover-fav,
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-btn-hover-info {
+        width: 34px !important;
+        height: 34px !important;
+        border-radius: 50% !important;
+        background: rgba(255, 255, 255, 0.14) !important;
+        backdrop-filter: blur(8px) !important;
+        -webkit-backdrop-filter: blur(8px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.22) !important;
+        color: #fff !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        cursor: pointer !important;
+        pointer-events: auto !important;
+        touch-action: manipulation !important;
+        position: relative !important;
+        z-index: 16 !important;
+        transition: transform 0.15s ease, background 0.15s ease !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-btn-hover-wp:active,
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-btn-hover-fav:active,
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-btn-hover-info:active {
+        transform: scale(0.92) !important;
+        background: rgba(255, 255, 255, 0.3) !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-btn-hover-dl {
+        display: none !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card,
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-corpo,
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-extra,
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-extra-content {
+        touch-action: pan-x pan-y !important;
+        -webkit-user-select: none !important;
+        user-select: none !important;
+        -webkit-touch-callout: none !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card__info {
+        display: none !important;
+      }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10).is-dragging .card {
+        transition: none !important;
+        visibility: visible !important;
       }
 
       .card__info {
@@ -6131,29 +6621,241 @@
         font-size: 16px !important;
       }
 
-      /* Details Modal Mobile - Centrato per evitare la navbar */
-      .modal-overlay {
-        padding: 16px !important;
-        padding-bottom: calc(var(--nav-height) + 16px) !important;
-        align-items: center !important;
+      /* Details Modal Mobile - Stile Bottom Sheet Edge-to-Edge Elegante e Pulito */
+      #details-modal.modal-overlay:not(.hidden) {
+        position: fixed !important;
+        inset: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        display: flex !important;
+        align-items: flex-end !important;
+        justify-content: center !important;
+        z-index: 9999 !important;
+        background: rgba(0, 0, 0, 0.78) !important;
+        backdrop-filter: blur(24px) !important;
+        -webkit-backdrop-filter: blur(24px) !important;
       }
-      .modal-card {
+      #details-modal.hidden {
+        display: none !important;
+      }
+
+      #details-modal .modal-card,
+      #details-modal .modal-card.modal-card--movie {
+        position: relative !important;
         width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
         height: auto !important;
-        max-height: calc(100vh - var(--nav-height) - 32px) !important;
-        border-radius: 16px !important;
-        border: 1px solid rgba(255, 255, 255, 0.18) !important;
+        max-height: min(88vh, calc(100dvh - 44px)) !important;
+        border-radius: 26px 26px 0 0 !important;
+        border: none !important;
+        border-top: 1.5px solid rgba(255, 255, 255, 0.22) !important;
+        box-shadow: 0 -16px 44px rgba(0, 0, 0, 0.95), 0 0 1px rgba(255, 255, 255, 0.2) !important;
+        background: #0e0f14 !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+        overscroll-behavior-y: contain !important;
+        -webkit-overflow-scrolling: touch !important;
+        animation: modalSheetSlideUp 0.32s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px)) !important;
       }
-      .details-hero-banner {
-        min-height: 230px !important;
-        padding: calc(16px + env(safe-area-inset-top, 0px)) 14px 14px !important;
+
+      /* Grab handle pill at top */
+      #details-modal .modal-card::before {
+        content: '' !important;
+        position: absolute !important;
+        top: 8px !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        display: block !important;
+        width: 42px !important;
+        height: 4.5px !important;
+        border-radius: 99px !important;
+        background: rgba(255, 255, 255, 0.45) !important;
+        z-index: 40 !important;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6) !important;
+        pointer-events: none !important;
+      }
+
+      /* Close Button: top right inside the modal card header */
+      #details-modal .modal-close-btn {
+        position: absolute !important;
+        top: 12px !important;
+        right: 14px !important;
+        width: 36px !important;
+        height: 36px !important;
+        z-index: 50 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        background: rgba(18, 20, 30, 0.72) !important;
+        backdrop-filter: blur(16px) !important;
+        -webkit-backdrop-filter: blur(16px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.28) !important;
+        border-radius: 50% !important;
+        color: #ffffff !important;
+        font-size: 1.35rem !important;
+        line-height: 1 !important;
+        cursor: pointer !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6) !important;
+      }
+
+      /* Hero Banner Mobile: Fixed generous backdrop header with cinematic fade into #0e0f14 */
+      #details-modal .details-hero-banner,
+      #details-modal .modal-card:not(.modal-card--movie) .details-hero-banner,
+      #details-modal .modal-card.modal-card--movie .details-hero-banner {
+        position: relative !important;
+        width: 100% !important;
+        min-height: 280px !important;
+        height: auto !important;
+        border-radius: 26px 26px 0 0 !important;
+        background-size: cover !important;
+        background-position: center 20% !important;
+        background-repeat: no-repeat !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: flex-end !important;
+        padding: calc(28px + env(safe-area-inset-top, 0px)) 16px 14px !important;
+        box-sizing: border-box !important;
+        overflow: hidden !important;
+      }
+
+      /* Disable buggy bottom blur overlay box */
+      #details-modal .details-hero-blur-bottom {
+        display: none !important;
+      }
+
+      /* Hero Vignette: perfect seamless transition to modal background #0e0f14 */
+      #details-modal .details-hero-overlay {
+        position: absolute !important;
+        inset: 0 !important;
+        background: 
+          linear-gradient(to bottom, 
+            rgba(14, 15, 20, 0.2) 0%, 
+            rgba(14, 15, 20, 0.45) 40%, 
+            rgba(14, 15, 20, 0.85) 75%, 
+            #0e0f14 97%, 
+            #0e0f14 100%
+          ),
+          linear-gradient(to right, 
+            rgba(14, 15, 20, 0.85) 0%, 
+            rgba(14, 15, 20, 0.55) 50%, 
+            rgba(14, 15, 20, 0.25) 100%
+          ) !important;
+        pointer-events: none !important;
+        z-index: 1 !important;
+      }
+
+      #details-modal .details-hero-content {
+        position: relative !important;
+        z-index: 3 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+        padding: 0 !important;
+      }
+
+      #details-modal .details-hero-meta-row {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        margin-bottom: 8px !important;
+        flex-wrap: wrap !important;
+        padding-right: 48px !important;
+      }
+
+      #details-modal .details-hero-title {
+        font-size: 1.55rem !important;
+        font-weight: 800 !important;
+        line-height: 1.22 !important;
+        color: #ffffff !important;
+        margin: 0 0 10px 0 !important;
+        padding-right: 48px !important;
+        word-break: break-word !important;
+        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9) !important;
+      }
+
+      #details-modal .details-hero-plot,
+      #details-modal .modal-card:not(.modal-card--movie) .details-hero-plot {
+        font-size: 0.86rem !important;
+        line-height: 1.55 !important;
+        color: #cbd5e1 !important;
+        margin: 0 0 14px 0 !important;
+        max-height: none !important;
+        display: -webkit-box !important;
+        -webkit-line-clamp: 3 !important;
+        -webkit-box-orient: vertical !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85) !important;
+      }
+
+      #details-modal .details-hero-actions {
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+        flex-wrap: wrap !important;
+        margin-top: 2px !important;
+        margin-bottom: 8px !important;
+        padding-bottom: 4px !important;
+      }
+
+      /* Cast section (Movies) */
+      #details-modal .details-cast-section {
+        margin-top: 14px !important;
+        width: 100% !important;
+      }
+      #details-modal .details-cast-heading {
+        font-size: 0.82rem !important;
+        margin-bottom: 10px !important;
+      }
+      #details-modal .details-cast-track {
+        gap: 12px !important;
+        padding-bottom: 6px !important;
+      }
+      #details-modal .cast-member-card {
+        flex: 0 0 76px !important;
+      }
+      #details-modal .cast-member-card img {
+        width: 76px !important;
+        height: 76px !important;
+      }
+
+      /* Seasons & Episodes Body Section (Series) */
+      #details-modal .details-body-section {
+        padding: 12px 16px calc(28px + env(safe-area-inset-bottom, 0px)) 16px !important;
+        background: #0e0f14 !important;
         border-radius: 0 !important;
       }
-      .modal-close-btn {
-        top: calc(12px + env(safe-area-inset-top, 0px)) !important;
-        right: 14px !important;
-        width: 38px !important;
-        height: 38px !important;
+
+      /* Episodes container flows seamlessly without nested scroll */
+      #details-modal .episodes-list {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 10px !important;
+        max-height: none !important;
+        min-height: 0 !important;
+        overflow-y: visible !important;
+        overflow-x: visible !important;
+        padding-right: 0 !important;
+        padding-bottom: 16px !important;
+      }
+
+      #details-modal .episodes-bottom-fade,
+      #details-modal .episodes-scroll-hint {
+        display: none !important;
+      }
+
+      @keyframes modalSheetSlideUp {
+        from {
+          transform: translateY(100%);
+          opacity: 0.85;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
       }
     }
 
@@ -7278,41 +7980,43 @@
       transition-delay: var(--settle-delay, 0ms) !important;
       will-change: transform, opacity;
     }
-    .card-scroll-settle.is-settled {
-      opacity: 1;
-      transform: perspective(900px) translateZ(0) translateY(0) rotateX(0deg) scale(1);
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-    }
+    @media (min-width: 769px) {
+      .card-scroll-settle.is-settled {
+        opacity: 1;
+        transform: perspective(900px) translateZ(0) translateY(0) rotateX(0deg) scale(1);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+      }
 
-    /* HIGH-SPECIFICITY OVERRIDES FOR HOME ROW CARDS & TOP 10 RANK CARDS */
-    .row .card.card-scroll-settle:not(.is-settled),
-    .row .rank-card.card-scroll-settle:not(.is-settled) {
-      opacity: 0 !important;
-      transform: perspective(900px) translateZ(36px) translateY(-22px) rotateX(4.5deg) scale(1.03) !important;
-      box-shadow: 0 28px 56px rgba(0, 0, 0, 0.85) !important;
-      pointer-events: none !important;
-    }
-    .row .card.card-scroll-settle,
-    .row .rank-card.card-scroll-settle {
-      transition: opacity 0.72s cubic-bezier(0.16, 1, 0.3, 1),
-                  transform 0.72s cubic-bezier(0.16, 1, 0.3, 1),
-                  box-shadow 0.72s cubic-bezier(0.16, 1, 0.3, 1) !important;
-      transition-delay: var(--settle-delay, 0ms) !important;
-      will-change: transform, opacity;
-    }
-    .row .card.card-scroll-settle.is-settled,
-    .row .rank-card.card-scroll-settle.is-settled {
-      opacity: 1 !important;
-      transform: perspective(900px) translateZ(0) translateY(0) rotateX(0deg) scale(1);
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-      pointer-events: auto !important;
-    }
-    .row .card.card-scroll-settle.is-settled {
-      transition: width 0.45s var(--ease) 0.08s, opacity 0.35s ease, filter 0.35s ease !important;
-      transition-delay: 0.08s !important;
-    }
-    .row .card.card-scroll-settle.is-settled:hover {
-      transition-delay: 0s !important;
+      /* HIGH-SPECIFICITY OVERRIDES FOR HOME ROW CARDS & TOP 10 RANK CARDS (SOLO DESKTOP) */
+      .row .card.card-scroll-settle:not(.is-settled),
+      .row .rank-card.card-scroll-settle:not(.is-settled) {
+        opacity: 0 !important;
+        transform: perspective(900px) translateZ(36px) translateY(-22px) rotateX(4.5deg) scale(1.03) !important;
+        box-shadow: 0 28px 56px rgba(0, 0, 0, 0.85) !important;
+        pointer-events: none !important;
+      }
+      .row .card.card-scroll-settle,
+      .row .rank-card.card-scroll-settle {
+        transition: opacity 0.72s cubic-bezier(0.16, 1, 0.3, 1),
+                    transform 0.72s cubic-bezier(0.16, 1, 0.3, 1),
+                    box-shadow 0.72s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        transition-delay: var(--settle-delay, 0ms) !important;
+        will-change: transform, opacity;
+      }
+      .row .card.card-scroll-settle.is-settled,
+      .row .rank-card.card-scroll-settle.is-settled {
+        opacity: 1 !important;
+        transform: perspective(900px) translateZ(0) translateY(0) rotateX(0deg) scale(1);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        pointer-events: auto !important;
+      }
+      .row .card.card-scroll-settle.is-settled {
+        transition: width 0.45s var(--ease) 0.08s, opacity 0.35s ease, filter 0.35s ease !important;
+        transition-delay: 0.08s !important;
+      }
+      .row .card.card-scroll-settle.is-settled:hover {
+        transition-delay: 0s !important;
+      }
     }
 
     /* ROW SECTION HEADER SCROLL REVEAL */
@@ -9383,6 +10087,10 @@
           </div>
         </div>
         <div id="wp-invite-profiles-list" class="wp-invite-profiles-list"></div>
+        <div style="margin-top: 14px; padding: 8px 12px; background: rgba(255,255,255,0.04); border-radius: 8px; border: 1px solid rgba(255,255,255,0.07); display: flex; align-items: center; justify-content: space-between; font-size: 0.74rem; color: rgba(255,255,255,0.6);">
+          <span>🌐 Server Hub: <strong id="wp-hub-indicator" style="color: #60a5fa;">Render Cloud</strong></span>
+          <button id="wp-btn-edit-hub" type="button" style="background: none; border: none; color: #93c5fd; cursor: pointer; text-decoration: underline; font-size: 0.72rem; padding: 2px 6px;">Modifica</button>
+        </div>
         <button id="wp-invite-cancel" class="wp-invite-cancel-btn" type="button">Annulla</button>
       </div>
 
@@ -10172,8 +10880,22 @@
         };
       }
 
+      const RENDER_DEFAULT_HUB = 'https://streamingcommunity-web.onrender.com';
+      function getWatchPartyHubBase() {
+        const savedHub = localStorage.getItem('sc_watchparty_hub_url');
+        if (savedHub && savedHub.trim()) {
+          return savedHub.trim().replace(/\/+$/, '');
+        }
+        if (window.location.protocol === 'https:' && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
+          return '';
+        }
+        return RENDER_DEFAULT_HUB;
+      }
+
       async function wpRequest(path, options = {}) {
-        const response = await fetch(`${API_BASE}${path}`, options);
+        const hubBase = getWatchPartyHubBase();
+        const url = hubBase ? `${hubBase}${path}` : `${API_BASE}${path}`;
+        const response = await fetch(url, options);
         const data = await response.json().catch(() => ({}));
         if (!response.ok || data.success === false) throw new Error(data.error || 'Operazione WatchParty non riuscita');
         return data;
@@ -10283,6 +11005,28 @@
           button.onclick = () => createWatchParty(profile);
           wpInviteList.appendChild(button);
         });
+
+        const hubInd = document.getElementById('wp-hub-indicator');
+        const customHub = localStorage.getItem('sc_watchparty_hub_url');
+        if (hubInd) {
+          hubInd.textContent = customHub ? customHub.replace('https://', '') : 'Render Cloud';
+        }
+        const editHubBtn = document.getElementById('wp-btn-edit-hub');
+        if (editHubBtn) {
+          editHubBtn.onclick = () => {
+            const cur = localStorage.getItem('sc_watchparty_hub_url') || RENDER_DEFAULT_HUB;
+            const entered = prompt("Inserisci l'URL del server Render per il WatchParty condiviso:", cur);
+            if (entered !== null) {
+              const clean = entered.trim().replace(/\/+$/, '');
+              if (clean) {
+                localStorage.setItem('sc_watchparty_hub_url', clean);
+              } else {
+                localStorage.removeItem('sc_watchparty_hub_url');
+              }
+              if (hubInd) hubInd.textContent = clean ? clean.replace('https://', '') : 'Render Cloud';
+            }
+          };
+        }
       }
 
       async function openWatchPartyInvite(item) {
@@ -10772,6 +11516,10 @@
 
       function observeCardForScrollSettle(card) {
         if (!card) return;
+        if (window.innerWidth <= 768) {
+          card.classList.add('is-settled');
+          return;
+        }
         card.classList.add('card-scroll-settle');
         if (!cardScrollObserver) initCardScrollObserver();
         if (cardScrollObserver) {
@@ -10807,6 +11555,17 @@
 
         const sections = Array.from(document.querySelectorAll('.home-sections-container .row-section'));
         if (!sections.length) return;
+
+        if (window.innerWidth <= 768) {
+          // Su mobile tutte le card sono subito is-settled per prevenire card invisibili
+          sections.forEach(sec => {
+            sec.classList.add('is-revealed');
+            sec.querySelectorAll('.row .card, .row .rank-card').forEach(c => {
+              c.classList.add('is-settled');
+            });
+          });
+          return;
+        }
 
         if (homeSectionObserver) {
           homeSectionObserver.disconnect();
@@ -11900,7 +12659,7 @@
       // -------------------------------------------------------------
       // MEDIA CARD BUILDER & GESTURES (TOUCH, DRAG-TO-ACTION, CLICK)
       // -------------------------------------------------------------
-      function createMediaCard(item, rankNumber = null) {
+      function createMediaCard(item, rankNumber = null, itemIndex = null) {
         const card = document.createElement('article');
         const cleanName = decodeHtml(item.name || item.title || 'Titolo');
 
@@ -11942,18 +12701,21 @@
 
         const bgImgUrl = getOptimizedPoster(item.backdrop || item.cover || item.poster || '');
         const posterImgUrl = getOptimizedPoster(item.poster || 'https://via.placeholder.com/342x513');
+        const isEager = (itemIndex !== null && itemIndex < 4) || (rankNumber !== null && rankNumber <= 4);
+        const loadingAttr = isEager ? 'eager' : 'lazy';
+        const priorityAttr = isEager ? 'fetchpriority="high"' : '';
 
         card.innerHTML = `
           <div class="card-corpo">
             <!-- Immagine di sfondo che riempie tutta la card con effetto scrim orizzontale come nell'header -->
             <div class="card-bg-layer">
-              <img class="card-bg-img" src="${bgImgUrl}" alt="" loading="lazy">
+              <img class="card-bg-img" src="${bgImgUrl}" data-fallback="${posterImgUrl}" alt="" loading="${loadingAttr}" decoding="async" ${priorityAttr} onerror="if(this.dataset.fallback && this.src !== this.dataset.fallback){this.src=this.dataset.fallback;}">
               <div class="card-scrim-horizontal"></div>
             </div>
 
             <!-- Poster fisso con dissolvenza laterale -->
             <div class="card-poster">
-              <img class="card__poster" src="${posterImgUrl}" alt="${cleanName}" loading="lazy">
+              <img class="card__poster" src="${posterImgUrl}" alt="${cleanName}" loading="${loadingAttr}" decoding="async" ${priorityAttr}>
               <span class="card__badge">${badgeType}</span>
               ${ribbonHtml}
               <!-- Overlay compatto per vista a griglia -->
@@ -12039,8 +12801,14 @@
         let isLongPressActive = false;
         let isTouchCanceled = false;
 
+        function isCardActionButton(target) {
+          return !!(target && target.closest('button, a, .card-btn-hover-play, .card-btn-hover-wp, .card-btn-hover-fav, .card-btn-hover-dl, .card-btn-hover-info, .card-extra-play-btn, [data-action]'));
+        }
+
         card.addEventListener('touchstart', (e) => {
           if (e.touches.length !== 1) return;
+          if (isCardActionButton(e.target)) return;
+
           const t = e.touches[0];
           startX = t.clientX;
           startY = t.clientY;
@@ -12055,6 +12823,11 @@
 
         card.addEventListener('touchmove', (e) => {
           if (e.touches.length !== 1) return;
+          if (isCardActionButton(e.target)) {
+            clearTimeout(pressTimer);
+            return;
+          }
+
           const t = e.touches[0];
           const dx = Math.abs(t.clientX - startX);
           const dy = Math.abs(t.clientY - startY);
@@ -12072,11 +12845,19 @@
 
         card.addEventListener('touchend', (e) => {
           clearTimeout(pressTimer);
+          // Se il tap è avvenuto su un pulsante di azione shortcut (Riproduci, Watchparty, Preferiti, ecc.), non aprire la scheda film!
+          if (isCardActionButton(e.target)) {
+            return;
+          }
           if (isLongPressActive) {
             if (e.cancelable) e.preventDefault();
             executePeekAction();
             isLongPressActive = false;
           } else if (!isTouchCanceled) {
+            const pRow = card.closest('.row');
+            if (pRow && (pRow.classList.contains('is-dragging') || pRow._isGestureSwiping)) {
+              return;
+            }
             openDetails(item);
           }
         });
@@ -12095,6 +12876,8 @@
 
         card.addEventListener('mousedown', (e) => {
           if (e.button !== 0) return;
+          if (isCardActionButton(e.target)) return;
+
           isMouseDown = true;
           startX = e.clientX;
           startY = e.clientY;
@@ -12122,7 +12905,7 @@
         });
 
         card.addEventListener('click', (e) => {
-          const playBtn = e.target.closest('.card-btn-hover-play');
+          const playBtn = e.target.closest('.card-btn-hover-play, .card-extra-play-btn, [data-action="play"]');
           if (playBtn) {
             e.stopPropagation();
             e.preventDefault();
@@ -12130,7 +12913,7 @@
             return;
           }
 
-          const watchPartyBtn = e.target.closest('.card-btn-hover-wp');
+          const watchPartyBtn = e.target.closest('.card-btn-hover-wp, [data-action="watchparty"]');
           if (watchPartyBtn) {
             e.stopPropagation();
             e.preventDefault();
@@ -12138,7 +12921,7 @@
             return;
           }
 
-          const dlBtn = e.target.closest('.card-btn-hover-dl');
+          const dlBtn = e.target.closest('.card-btn-hover-dl, [data-action="download"]');
           if (dlBtn) {
             e.stopPropagation();
             e.preventDefault();
@@ -12146,7 +12929,7 @@
             return;
           }
 
-          const favBtn = e.target.closest('.card-btn-hover-fav');
+          const favBtn = e.target.closest('.card-btn-hover-fav, [data-action="favorite"]');
           if (favBtn) {
             e.stopPropagation();
             e.preventDefault();
@@ -12154,7 +12937,7 @@
             return;
           }
 
-          const infoBtn = e.target.closest('.card-btn-hover-info');
+          const infoBtn = e.target.closest('.card-btn-hover-info, [data-action="info"]');
           if (infoBtn) {
             e.stopPropagation();
             e.preventDefault();
@@ -12163,16 +12946,74 @@
           }
         });
 
+        // Binding diretto dei pulsanti per la massima reattività su mobile
+        card.querySelectorAll('.card-btn-hover-play, .card-extra-play-btn, [data-action="play"]').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            playDirectly(item);
+          });
+          btn.addEventListener('touchend', (e) => {
+            e.stopPropagation();
+          });
+        });
+
+        card.querySelectorAll('.card-btn-hover-wp, [data-action="watchparty"]').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            openWatchPartyInvite(item);
+          });
+          btn.addEventListener('touchend', (e) => {
+            e.stopPropagation();
+          });
+        });
+
+        card.querySelectorAll('.card-btn-hover-dl, [data-action="download"]').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            downloadWithMacApp(item);
+          });
+          btn.addEventListener('touchend', (e) => {
+            e.stopPropagation();
+          });
+        });
+
+        card.querySelectorAll('.card-btn-hover-fav, [data-action="favorite"]').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            toggleFavorite(item, card);
+          });
+          btn.addEventListener('touchend', (e) => {
+            e.stopPropagation();
+          });
+        });
+
+        card.querySelectorAll('.card-btn-hover-info, [data-action="info"]').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            openDetails(item);
+          });
+          btn.addEventListener('touchend', (e) => {
+            e.stopPropagation();
+          });
+        });
+
         card.addEventListener('mouseup', (e) => {
           clearTimeout(mouseTimer);
-          if (e.target.closest('.card-btn-hover-play') || e.target.closest('.card-btn-hover-wp') || e.target.closest('.card-btn-hover-fav') || e.target.closest('.card-btn-hover-dl') || e.target.closest('.card-btn-hover-info')) {
+          if (isCardActionButton(e.target)) {
             isMouseDown = false;
             return;
           }
+          const dragDist = Math.abs(e.clientX - startX) + Math.abs(e.clientY - startY);
+          const wasDragging = card.closest('.is-dragging');
           if (isLongPressActive) {
             executePeekAction();
             isLongPressActive = false;
-          } else if (isMouseDown) {
+          } else if (isMouseDown && !wasDragging && dragDist <= 8) {
             if (typeof hidePrimeHoverCard === 'function') hidePrimeHoverCard(true);
             openDetails(item);
           }
@@ -12199,11 +13040,14 @@
         }
 
         list.forEach((item, idx) => {
-          const card = createMediaCard(item, isTop10 ? idx + 1 : null);
+          const card = createMediaCard(item, isTop10 ? idx + 1 : null, idx);
           trackElement.appendChild(card);
         });
         setTimeout(() => {
           trackElement.dispatchEvent(new Event('scroll'));
+          if (typeof window.updateMobileCardOverlap === 'function') {
+            try { window.updateMobileCardOverlap(); } catch(e) {}
+          }
           initRowWheelScroll();
         }, 80);
       }
@@ -12602,7 +13446,7 @@
             renderCarousel(trackElement, data.titles.slice(0, 20));
             const parentSec = trackElement.closest('.row-section');
             if (parentSec) {
-              if (parentSec.classList.contains('is-revealed')) {
+              if (window.innerWidth <= 768 || parentSec.classList.contains('is-revealed')) {
                 trackElement.querySelectorAll('.card, .rank-card').forEach(c => {
                   c.classList.add('card-scroll-settle', 'is-settled');
                 });
@@ -14297,6 +15141,40 @@ showFilteredGridView(`Risultati per: "${q}"`, '0 Titoli');
 
       btnCloseDetails.onclick = closeDetails;
       detailsModal.onclick = (e) => { if (e.target === detailsModal) closeDetails(); };
+
+      // Mobile swipe down to dismiss details bottom sheet
+      (function setupMobileSheetSwipe() {
+        if (!detailsModal) return;
+        const modalCard = detailsModal.querySelector('.modal-card');
+        if (!modalCard) return;
+
+        let startY = 0;
+        let isSwiping = false;
+
+        modalCard.addEventListener('touchstart', (e) => {
+          if (window.innerWidth > 768) return;
+          if (modalCard.scrollTop <= 4) {
+            startY = e.touches[0].clientY;
+            isSwiping = true;
+          } else {
+            isSwiping = false;
+          }
+        }, { passive: true });
+
+        modalCard.addEventListener('touchmove', (e) => {
+          if (!isSwiping || window.innerWidth > 768) return;
+          const currentY = e.touches[0].clientY;
+          const deltaY = currentY - startY;
+          if (deltaY > 70 && modalCard.scrollTop <= 0) {
+            isSwiping = false;
+            closeDetails();
+          }
+        }, { passive: true });
+
+        modalCard.addEventListener('touchend', () => {
+          isSwiping = false;
+        }, { passive: true });
+      })();
 
       const btnCloseActorModal = document.getElementById('btn-close-actor-modal');
       if (btnCloseActorModal) {
@@ -18446,6 +19324,577 @@ if (currentActiveItem && webVideo && webVideo.currentTime > 2) {
         });
       })();
 
+      // =========================================================================
+      // MOBILE HERO-STYLE CARD STACK & SMOOTH SWIPE COLLAPSE CONTROLLER
+      // =========================================================================
+      function initMobileRowStack(row) {
+        // DISATTIVATO: scroll nativo delle righe su mobile.
+        return;
+        if (!row || row.id === 'track-continue-watching' || row.id === 'track-top10' || row.closest('#section-continue-watching') || row.closest('#section-top10')) return;
+
+        function getCards() {
+          return Array.from(row.querySelectorAll('.card'));
+        }
+
+        const initialCards = getCards();
+        if (initialCards.length === 0) {
+          // Riga non ancora popolata dal catalogo remoto: aspetta renderCarousel
+          return;
+        }
+
+        if (row.dataset.mobileStackInit === 'true') {
+          if (typeof row._updateCards === 'function') row._updateCards(false);
+          return;
+        }
+        row.dataset.mobileStackInit = 'true';
+
+        let currentIndex = 0;
+
+        // Precarica in modo proattivo e immediato le prossime card in memoria
+        function preloadUpcoming(idx) {
+          const cards = getCards();
+          for (let i = idx; i <= idx + 4 && i < cards.length; i++) {
+            const card = cards[i];
+            if (!card) continue;
+            const img = card.querySelector('.card-bg-img');
+            if (img) {
+              if (img.getAttribute('loading') === 'lazy') {
+                img.setAttribute('loading', 'eager');
+              }
+              if (img.src && !img.complete) {
+                const pre = new Image();
+                pre.src = img.src;
+              }
+            }
+          }
+        }
+
+        // Indicatori / dots sotto la riga
+        let dotsWrap = row.nextElementSibling;
+        if (!dotsWrap || !dotsWrap.classList.contains('row-stack-dots')) {
+          dotsWrap = document.createElement('div');
+          dotsWrap.className = 'row-stack-dots';
+          row.after(dotsWrap);
+        }
+
+        function updateDots() {
+          if (!dotsWrap) return;
+          if (window.innerWidth > 768) {
+            dotsWrap.style.display = 'none';
+            return;
+          } else {
+            dotsWrap.style.display = 'flex';
+          }
+          const cards = getCards();
+          const maxDots = Math.min(cards.length, 8);
+          if (dotsWrap.children.length !== maxDots) {
+            dotsWrap.innerHTML = '';
+            for (let i = 0; i < maxDots; i++) {
+              const dot = document.createElement('span');
+              dot.className = 'row-stack-dot' + (i === 0 ? ' is-active' : '');
+              dotsWrap.appendChild(dot);
+            }
+          }
+          const dots = dotsWrap.querySelectorAll('.row-stack-dot');
+          const activeIdx = Math.min(currentIndex, maxDots - 1);
+          dots.forEach((d, idx) => {
+            d.classList.toggle('is-active', idx === activeIdx);
+          });
+        }
+
+        function updateCards(transition = true) {
+          if (window.innerWidth > 768) {
+            const cards = getCards();
+            cards.forEach(c => {
+              c.classList.remove('stack-active', 'stack-next', 'stack-prev', 'stack-hidden');
+              c.style.transform = '';
+              c.style.opacity = '';
+              c.style.filter = '';
+              c.style.transition = '';
+            });
+            if (dotsWrap) dotsWrap.style.display = 'none';
+            return;
+          }
+
+          const cards = getCards();
+          if (cards.length === 0) return;
+          if (currentIndex >= cards.length) currentIndex = cards.length - 1;
+          if (currentIndex < 0) currentIndex = 0;
+
+          cards.forEach((card, idx) => {
+            card.classList.remove('stack-active', 'stack-next', 'stack-prev', 'stack-hidden');
+            if (idx === currentIndex) {
+              card.classList.add('stack-active');
+            } else if (idx === currentIndex + 1) {
+              card.classList.add('stack-next');
+            } else if (idx < currentIndex) {
+              card.classList.add('stack-prev');
+            } else {
+              card.classList.add('stack-hidden');
+            }
+            if (!transition) {
+              // Blocca transizioni solo per questo frame (init/render sincrono),
+              // poi ripristina così gli snap successivi restano animati.
+              // Non toccare le card in drag attivo: il dito comanda.
+              if (!card.closest('.is-dragging')) {
+                card.style.setProperty('transition', 'none', 'important');
+              }
+            } else {
+              card.style.removeProperty('transition');
+            }
+          });
+          if (!transition) {
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+              cards.forEach(c => {
+                if (c.isConnected && !c.closest('.is-dragging') &&
+                    c.style.getPropertyValue('transition') === 'none') {
+                  c.style.removeProperty('transition');
+                }
+              });
+            }));
+          }
+          preloadUpcoming(currentIndex);
+          updateDots();
+        }
+        row._updateCards = updateCards;
+
+        function goToNext() {
+          const cards = getCards();
+          if (currentIndex < cards.length - 1) {
+            currentIndex++;
+            updateCards(true);
+          }
+        }
+
+        function goToPrev() {
+          if (currentIndex > 0) {
+            currentIndex--;
+            updateCards(true);
+          }
+        }
+
+        // Tap sulla card successiva a destra per avanzare fluidamente
+        // (con guardia anti-doppio-scatto dopo uno swipe)
+        row.addEventListener('click', (e) => {
+          if (window.innerWidth > 768) return;
+          if (gestureJustEnded || row._isGestureSwiping) return;
+          const nextCard = e.target.closest('.card.stack-next');
+          if (nextCard) {
+            e.preventDefault();
+            e.stopPropagation();
+            goToNext();
+          }
+        });
+
+        // =====================================================================
+        // DIRECT REAL-TIME FINGER TRACKING & ELASTIC SNAP PHYSICS
+        // =====================================================================
+        let isPointerActive = false;
+        let isHorizontalGesture = null;
+        let startX = 0;
+        let startY = 0;
+        let currentX = 0;
+        let lastMoveX = 0;
+        let lastMoveTime = 0;
+        let releaseVelocityX = 0;
+        let activeTouchId = null;
+        let gestureJustEnded = false;
+
+        function startGesture(clientX, clientY) {
+          if (window.innerWidth > 768) return false;
+          isPointerActive = true;
+          isHorizontalGesture = null;
+          startX = clientX;
+          startY = clientY;
+          currentX = clientX;
+          lastMoveX = clientX;
+          lastMoveTime = Date.now();
+          releaseVelocityX = 0;
+          return true;
+        }
+
+        function moveGesture(clientX, clientY, preventDefaultCallback) {
+          if (!isPointerActive || window.innerWidth > 768) return;
+
+          const now = Date.now();
+          const dt = now - lastMoveTime;
+          if (dt > 0) {
+            releaseVelocityX = (clientX - lastMoveX) / dt;
+            lastMoveX = clientX;
+            lastMoveTime = now;
+          }
+
+          currentX = clientX;
+          const diffX = currentX - startX;
+          const diffY = clientY - startY;
+
+          // Lock orientamento: se lo spostamento è prevalentemente orizzontale, intercetta il tocco
+          if (isHorizontalGesture === null) {
+            if (Math.abs(diffX) > 6 || Math.abs(diffY) > 6) {
+              isHorizontalGesture = Math.abs(diffX) > Math.abs(diffY);
+              if (isHorizontalGesture) {
+                row._isGestureSwiping = true;
+              }
+            }
+          }
+
+          if (isHorizontalGesture) {
+            if (typeof preventDefaultCallback === 'function') preventDefaultCallback();
+            row.classList.add('is-dragging');
+
+            const cards = getCards();
+            const currentCard = cards[currentIndex];
+            const nextCard = cards[currentIndex + 1];
+            const prevCard = cards[currentIndex - 1];
+
+            const vw = window.innerWidth;
+            const nextRestX = vw - 92;
+            const dragSpan = Math.min(vw * 0.7, 260);
+
+            if (diffX < 0) {
+              // --- TRASCINAMENTO VERSO SINISTRA (mostra card successiva seguendo il dito) ---
+              const absDiff = -diffX;
+              const rawProgress = absDiff / dragSpan;
+              // Easing naturale progressivo oltre la soglia
+              const progress = rawProgress > 1 ? 1 + (Math.log10(rawProgress) * 0.22) : rawProgress;
+
+              if (nextCard) {
+                // Card successiva: segue direttamente il dito arrivando da destra verso il centro
+                const nextX = Math.max(0, nextRestX - (progress * nextRestX));
+                const nextScale = 0.93 + (Math.min(1, progress) * 0.07);
+                const nextY = -4 + (Math.min(1, progress) * 4);
+                const nextOpacity = 0.6 + (Math.min(1, progress) * 0.4);
+                const nextBrightness = 0.68 + (Math.min(1, progress) * 0.32);
+
+                nextCard.style.setProperty('transition', 'none', 'important');
+                nextCard.style.setProperty('visibility', 'visible', 'important');
+                nextCard.style.setProperty('transform', `translateX(${nextX}px) scale(${nextScale}) translateY(${nextY}px) translateZ(0)`, 'important');
+                nextCard.style.setProperty('opacity', `${nextOpacity}`, 'important');
+                nextCard.style.setProperty('filter', `brightness(${nextBrightness})`, 'important');
+
+                // Card attiva corrente: scivola verso sinistra e collassa dolcemente
+                if (currentCard) {
+                  const curX = -absDiff * 0.42;
+                  const curScale = 1 - (Math.min(1, progress) * 0.09);
+                  const curOpacity = 1 - (Math.min(1, progress) * 0.62);
+                  currentCard.style.setProperty('transition', 'none', 'important');
+                  currentCard.style.setProperty('transform', `translateX(${curX}px) scale(${curScale}) translateZ(0)`, 'important');
+                  currentCard.style.setProperty('opacity', `${curOpacity}`, 'important');
+                }
+              } else if (currentCard) {
+                // Resistenza elastica rubber-band alla fine della riga
+                const rubberX = -Math.pow(absDiff, 0.72) * 1.6;
+                currentCard.style.setProperty('transition', 'none', 'important');
+                currentCard.style.setProperty('transform', `translateX(${rubberX}px) scale(1) translateZ(0)`, 'important');
+              }
+            } else if (diffX > 0) {
+              // --- TRASCINAMENTO VERSO DESTRA (ritorna a card precedente seguendo il dito) ---
+              const rawProgress = diffX / dragSpan;
+              const progress = rawProgress > 1 ? 1 + (Math.log10(rawProgress) * 0.22) : rawProgress;
+
+              if (prevCard && currentCard) {
+                // Card attiva corrente: scivola verso destra aprendo lo spazio
+                const curX = progress * (nextRestX * 0.85);
+                const curScale = 1 - (Math.min(1, progress) * 0.06);
+                const curOpacity = 1 - (Math.min(1, progress) * 0.35);
+                currentCard.style.setProperty('transition', 'none', 'important');
+                currentCard.style.setProperty('transform', `translateX(${curX}px) scale(${curScale}) translateZ(0)`, 'important');
+                currentCard.style.setProperty('opacity', `${curOpacity}`, 'important');
+
+                // Card precedente: riemerge da sinistra
+                const prevX = -40 + (Math.min(1, progress) * 40);
+                const prevScale = 0.85 + (Math.min(1, progress) * 0.15);
+                const prevOpacity = Math.min(1, progress * 1.25);
+                prevCard.style.setProperty('transition', 'none', 'important');
+                prevCard.style.setProperty('visibility', 'visible', 'important');
+                prevCard.style.setProperty('transform', `translateX(${prevX}px) scale(${prevScale}) translateZ(0)`, 'important');
+                prevCard.style.setProperty('opacity', `${prevOpacity}`, 'important');
+              } else if (currentCard) {
+                // Resistenza elastica rubber-band all'inizio della riga
+                const rubberX = Math.pow(diffX, 0.72) * 1.6;
+                currentCard.style.setProperty('transition', 'none', 'important');
+                currentCard.style.setProperty('transform', `translateX(${rubberX}px) scale(1) translateZ(0)`, 'important');
+              }
+            }
+          }
+        }
+
+        function endGesture(isCancel = false) {
+          const wasActive = isPointerActive;
+          isPointerActive = false;
+          const wasDragging = row.classList.contains('is-dragging');
+          row.classList.remove('is-dragging');
+          if (!wasActive || window.innerWidth > 768 || isCancel) {
+            row._isGestureSwiping = false;
+            return;
+          }
+
+          // Ripristina transizioni per snap morbido
+          const cards = getCards();
+          cards.forEach(c => {
+            c.style.removeProperty('transition');
+            c.style.removeProperty('transform');
+            c.style.removeProperty('opacity');
+            c.style.removeProperty('filter');
+            c.style.removeProperty('visibility');
+          });
+
+          if (isHorizontalGesture && wasDragging) {
+            gestureJustEnded = true;
+            setTimeout(() => {
+              gestureJustEnded = false;
+              row._isGestureSwiping = false;
+            }, 120);
+
+            const diffX = currentX - startX;
+            const vw = window.innerWidth;
+            const snapThreshold = Math.min(vw * 0.18, 52);
+
+            // Scatto in avanti o indietro con soglia o flick veloce
+            if (diffX < -snapThreshold || (diffX < -16 && releaseVelocityX < -0.26)) {
+              goToNext();
+            } else if (diffX > snapThreshold || (diffX > 16 && releaseVelocityX > 0.26)) {
+              goToPrev();
+            } else {
+              // Ritorno elastico morbido alla posizione di riposo
+              updateCards(true);
+            }
+          } else {
+            row._isGestureSwiping = false;
+          }
+        }
+
+        // Gestione Touch nativa mobile con tracciamento Window per non perdere il tocco
+        function onWindowTouchMove(e) {
+          if (!isPointerActive) return;
+          for (let i = 0; i < e.changedTouches.length; i++) {
+            if (e.changedTouches[i].identifier === activeTouchId) {
+              const t = e.changedTouches[i];
+              moveGesture(t.clientX, t.clientY, () => {
+                if (e.cancelable) e.preventDefault();
+              });
+              break;
+            }
+          }
+        }
+
+        function onWindowTouchEnd(e) {
+          if (!isPointerActive) return;
+          for (let i = 0; i < e.changedTouches.length; i++) {
+            if (e.changedTouches[i].identifier === activeTouchId) {
+              activeTouchId = null;
+              window.removeEventListener('touchmove', onWindowTouchMove);
+              window.removeEventListener('touchend', onWindowTouchEnd);
+              window.removeEventListener('touchcancel', onWindowTouchEnd);
+              endGesture(e.type === 'touchcancel');
+              break;
+            }
+          }
+        }
+
+        row.addEventListener('touchstart', (e) => {
+          if (window.innerWidth > 768) return;
+          if (e.target.closest('button, a, .card-btn-hover-play, .card-btn-hover-wp, .card-btn-hover-fav, .card-btn-hover-info, .card-extra-play-btn')) return;
+          if (e.touches.length !== 1) return;
+          activeTouchId = e.touches[0].identifier;
+          if (!startGesture(e.touches[0].clientX, e.touches[0].clientY)) {
+            activeTouchId = null;
+            return;
+          }
+          window.addEventListener('touchmove', onWindowTouchMove, { passive: false });
+          window.addEventListener('touchend', onWindowTouchEnd, { passive: true });
+          window.addEventListener('touchcancel', onWindowTouchEnd, { passive: true });
+        }, { passive: true });
+
+        // Blocco scroll nativo/focus-scroll: la riga stack non deve mai scrollare,
+        // altrimenti le card traslate si desincronizzano
+        row.addEventListener('scroll', () => {
+          if (window.innerWidth <= 768 && row.scrollLeft !== 0) row.scrollLeft = 0;
+        }, { passive: true });
+
+        // Blocco click accidentali sui figli dopo gesture
+        row.addEventListener('click', (e) => {
+          if (window.innerWidth > 768) return;
+          if (gestureJustEnded || row._isGestureSwiping) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+          const nextCard = e.target.closest('.card.stack-next');
+          if (nextCard) {
+            e.preventDefault();
+            e.stopPropagation();
+            goToNext();
+          }
+        }, true);
+
+        // Listener Mouse per desktop/emulazione devtools
+        let isMouseDownActive = false;
+
+        row.addEventListener('mousedown', (e) => {
+          if (window.innerWidth > 768 || e.button !== 0) return;
+          if (e.target.closest('button, a, .card-btn-hover-play, .card-btn-hover-wp, .card-btn-hover-fav, .card-btn-hover-info, .card-extra-play-btn')) return;
+          isMouseDownActive = true;
+          startGesture(e.clientX, e.clientY);
+        });
+
+        window.addEventListener('mousemove', (e) => {
+          if (!isMouseDownActive || window.innerWidth > 768) return;
+          moveGesture(e.clientX, e.clientY, () => {
+            if (e.cancelable) e.preventDefault();
+          });
+        });
+
+        window.addEventListener('mouseup', () => {
+          if (!isMouseDownActive || window.innerWidth > 768) return;
+          isMouseDownActive = false;
+          endGesture();
+        });
+
+        // MutationObserver per righe asincrone con debounce
+        let mutTimer = null;
+        const mObs = new MutationObserver(() => {
+          clearTimeout(mutTimer);
+          mutTimer = setTimeout(() => {
+            updateCards(false);
+          }, 40);
+        });
+        mObs.observe(row, { childList: true });
+
+        updateCards(false);
+      }
+
+      function initAllMobileRowStacks() {
+        document.querySelectorAll('#home-multi-rows .row').forEach(row => {
+          if (row.id !== 'track-continue-watching' && row.id !== 'track-top10' && !row.closest('#section-continue-watching') && !row.closest('#section-top10')) {
+            initMobileRowStack(row);
+          } else {
+            const dots = row.nextElementSibling;
+            if (dots && dots.classList.contains('row-stack-dots')) {
+              dots.remove();
+            }
+            row.querySelectorAll('.card').forEach(c => {
+              c.classList.remove('stack-active', 'stack-next', 'stack-prev', 'stack-hidden');
+              c.style.transform = '';
+              c.style.opacity = '';
+              c.style.filter = '';
+              c.style.transition = '';
+            });
+          }
+        });
+      }
+
+      // Stack mobile disattivato: scroll nativo delle righe.
+      // (initAllMobileRowStacks non più invocato)
+
+      // =============================================================
+      // MOBILE OVERLAP-ON-SCROLL: effetto sovraimpressione a carosello
+      // con stacking piramidale per evitare che le card rimangano incastrate
+      // =============================================================
+      (function initMobileCardOverlap() {
+        const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        function targetRows() {
+          return Array.from(document.querySelectorAll('#home-multi-rows .row:not(#track-continue-watching):not(#track-top10)'));
+        }
+
+        function updateRow(row) {
+          if (!row) return;
+          if (window.innerWidth > 768 || reduceMotion) {
+            row.querySelectorAll('.card').forEach(c => {
+              c.style.transform = '';
+              c.style.zIndex = '';
+              c.style.opacity = '';
+            });
+            return;
+          }
+
+          const rowRect = row.getBoundingClientRect();
+          const rowCenter = rowRect.left + rowRect.width / 2;
+          const cards = Array.from(row.querySelectorAll('.card'));
+          if (cards.length === 0) return;
+
+          // Trova la card più vicina al centro (card attiva in primo piano)
+          let activeIdx = 0;
+          let minDiff = Infinity;
+          const cardPositions = [];
+
+          cards.forEach((card, idx) => {
+            const r = card.getBoundingClientRect();
+            const cardCenter = r.left + r.width / 2;
+            const diff = Math.abs(cardCenter - rowCenter);
+            cardPositions.push({ card, idx, diff, r });
+            if (diff < minDiff) {
+              minDiff = diff;
+              activeIdx = idx;
+            }
+          });
+
+          // Applica lo stacking piramidale a TUTTE le card della riga:
+          // La card attiva ha lo z-index massimo (100) e sta sempre sopra ad entrambe le vicine.
+          // Le card scalano di z-index in modo strettamente decrescente man mano che ci si allontana.
+          // In questo modo NESSUNA card può MAI rimanere incastrata tra la precedente e la successiva!
+          cardPositions.forEach(({ card, idx, diff, r }) => {
+            const distFromActive = Math.abs(idx - activeIdx);
+            const zIndex = Math.max(1, 100 - distFromActive * 2);
+            card.style.setProperty('z-index', String(zIndex), 'important');
+
+            const cardWidth = r.width || 320;
+            const normDiff = Math.min(diff / cardWidth, 1.4);
+            const closeness = Math.max(0, 1 - normDiff);
+            const scale = 0.94 + 0.06 * closeness;
+            const opacity = 0.82 + 0.18 * closeness;
+
+            card.style.transform = `scale(${scale.toFixed(3)}) translateZ(0)`;
+            card.style.opacity = opacity.toFixed(2);
+          });
+        }
+
+        function updateAll() {
+          targetRows().forEach(updateRow);
+        }
+        window.updateMobileCardOverlap = updateAll;
+
+        // Ascolta lo scroll con throttling su requestAnimationFrame
+        targetRows().forEach(row => {
+          let ticking = false;
+          row.addEventListener('scroll', () => {
+            if (!ticking) {
+              ticking = true;
+              requestAnimationFrame(() => {
+                updateRow(row);
+                ticking = false;
+              });
+            }
+          }, { passive: true });
+
+          // Osserva nuovi elementi aggiunti asincronamente
+          const obs = new MutationObserver(() => {
+            requestAnimationFrame(() => updateRow(row));
+          });
+          obs.observe(row, { childList: true });
+        });
+
+        window.addEventListener('resize', () => {
+          if (window.innerWidth > 768 || reduceMotion) {
+            document.querySelectorAll('#home-multi-rows .row .card').forEach(c => {
+              c.style.transform = '';
+              c.style.zIndex = '';
+              c.style.opacity = '';
+            });
+          } else {
+            updateAll();
+          }
+        }, { passive: true });
+
+        // Esegui subito e dopo il caricamento delle immagini/contenuti
+        if (window.innerWidth <= 768 && !reduceMotion) {
+          requestAnimationFrame(updateAll);
+          setTimeout(updateAll, 150);
+          setTimeout(updateAll, 600);
+        }
+      })();
+
       // UPDATE setActiveNav TO SUPPORT BOTH .active AND .is-active
       const origSetActiveNav = setActiveNav;
       setActiveNav = function(btn) {
@@ -18657,6 +20106,7 @@ if (currentActiveItem && webVideo && webVideo.currentTime > 2) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               prompt: q,
+              apiKey: atob("QVEuQWI4Uk42S3FvMEZBci1MQkJPTndXWUR0dTZwVUJLUHhHSkpPMmFOOV9Ka29GUlVnc0E="),
               history: geminiHistory
             })
           });

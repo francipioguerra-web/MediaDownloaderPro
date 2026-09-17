@@ -1,0 +1,52 @@
+{
+  "65339": {
+    "alt_sources": [
+      {
+        "flag": "🇬🇧",
+        "id": "tmdb-298168",
+        "lang": "eng",
+        "name": "The Shards",
+        "source": "LookMovie / VidSrc",
+        "type": "tv",
+        "watch_url": "https://vidsrc.xyz/embed/tv/298168"
+      }
+    ],
+    "cover": "https://image.tmdb.org/t/p/original/AhzF2bkYYybcCT4PnqpoagRGBWJ.jpg",
+    "flag": "🇮🇹",
+    "has_multi_lang": true,
+    "id": 65339,
+    "lang": "ita",
+    "name": "The Shards",
+    "plot": "Ambientata a Los Angeles nel 1981, la storia segue una versione di Bret Easton Ellis a 17 anni durante il suo ultimo anno alla prestigiosa scuola preparatoria Buckley. A sconvolgere il suo mondo arriva l’arrivo di un misterioso nuovo studente, Robert Mallory, la cui presenza inquietante coincide con le attività di un serial killer noto come The Trawler.",
+    "poster": "https://cdn.streamingcommunityz.taxi/images/a213751a-851f-4c32-b724-bf834b5c11f1.webp",
+    "release_date": "",
+    "seasons": [
+      {
+        "created_at": "2026-08-06T13:05:02.000000Z",
+        "episodes_count": 9,
+        "id": 29515,
+        "name": "Stagione 1",
+        "number": 1,
+        "plot": "",
+        "release_date": "2026-08-05",
+        "release_date_it": "2026-08-05",
+        "title_id": 65339,
+        "translations": [
+          {
+            "id": 1010525,
+            "key": "name",
+            "locale": "it",
+            "translatable_id": 29515,
+            "translatable_type": "season",
+            "value": "Stagione 1"
+          }
+        ],
+        "updated_at": "2026-08-06T13:05:05.000000Z"
+      }
+    ],
+    "slug": "the-shards",
+    "source": "StreamingCommunity",
+    "type": "tv",
+    "watch_url": "https://streamingcommunityz.taxi/it/watch/65339"
+  }
+}
