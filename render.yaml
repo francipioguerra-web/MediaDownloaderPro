@@ -1,10 +1,9 @@
 services:
   - type: web
     name: streamingcommunity-web
-    env: python
+    env: docker
     plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn server:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120
+    dockerfilePath: ./Dockerfile
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.9
+      - key: PORT
+        value: 10000

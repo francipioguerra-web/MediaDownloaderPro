@@ -42,3 +42,7 @@ sc_catalog_cache.json
 service_runner.sh
 android_app/
 android_standalone/
+data/
+test_*.py
+sc.html
+vix.html
