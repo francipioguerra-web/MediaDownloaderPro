@@ -3434,11 +3434,33 @@ def watchparty_create():
 
     return jsonify({"success": True, "session_id": session_id, "session": session})
 
+def proxy_to_render_wp(endpoint, method="GET", json_data=None, params=None):
+    try:
+        import urllib.request
+        import urllib.parse
+        import json
+        import ssl
+        ctx = ssl._create_unverified_context()
+        url = f"https://serverwatchparty.onrender.com/api/watchparty/{endpoint}"
+        if params:
+            url += "?" + urllib.parse.urlencode(params)
+        req_data = json.dumps(json_data).encode("utf-8") if json_data is not None else None
+        headers = {"User-Agent": "MediaDownloaderStream"}
+        if req_data:
+            headers["Content-Type"] = "application/json"
+        req = urllib.request.Request(url, data=req_data, headers=headers, method=method)
+        with urllib.request.urlopen(req, context=ctx, timeout=3.0) as resp:
+            content = resp.read().decode("utf-8")
+            return json.loads(content) if content else {"success": True}
+    except Exception as e:
+        print("[WatchParty Proxy Error]", e)
+        return None
+
 @app.route('/api/watchparty/pending', methods=['GET'])
 def watchparty_pending():
     profile_id = request.args.get("profile_id")
     if not profile_id:
-        return jsonify({"sessions": []})
+        return jsonify({"success": True, "sessions": []})
 
     data = load_watchparty_data()
     data = cleanup_old_sessions(data)
@@ -3446,7 +3468,15 @@ def watchparty_pending():
     pending = [s for s in data.get("sessions", [])
                if s.get("guest_profile_id") == profile_id and s.get("status") == "waiting"]
 
-    return jsonify({"sessions": pending})
+    # Also query Render Hub so that invitations sent from APK/Phone always reach localhost
+    remote_res = proxy_to_render_wp("pending", method="GET", params={"profile_id": profile_id})
+    if remote_res and isinstance(remote_res.get("sessions"), list):
+        existing_ids = {s.get("session_id") for s in pending}
+        for rs in remote_res["sessions"]:
+            if rs.get("session_id") not in existing_ids:
+                pending.append(rs)
+
+    return jsonify({"success": True, "sessions": pending})
 
 @app.route('/api/watchparty/accept', methods=['POST'])
 def watchparty_accept():
@@ -3464,6 +3494,10 @@ def watchparty_accept():
                 save_watchparty_data(data)
                 return jsonify({"success": True, "session": s})
 
+    remote = proxy_to_render_wp("accept", method="POST", json_data={"session_id": session_id})
+    if remote and remote.get("success"):
+        return jsonify(remote)
+
     return jsonify({"success": False, "error": "Sessione non trovata"}), 404
 
 @app.route('/api/watchparty/decline', methods=['POST'])
@@ -3480,6 +3514,10 @@ def watchparty_decline():
                 s["status"] = "declined"
                 save_watchparty_data(data)
                 return jsonify({"success": True})
+
+    remote = proxy_to_render_wp("decline", method="POST", json_data={"session_id": session_id})
+    if remote and remote.get("success"):
+        return jsonify(remote)
 
     return jsonify({"success": False, "error": "Sessione non trovata"}), 404
 
@@ -3513,6 +3551,10 @@ def watchparty_sync():
                 save_watchparty_data(data)
                 return jsonify({"success": True, "session": s})
 
+    remote = proxy_to_render_wp("sync", method="POST", json_data=req)
+    if remote and remote.get("success"):
+        return jsonify(remote)
+
     return jsonify({"success": False, "error": "Sessione non trovata o non attiva"}), 404
 
 @app.route('/api/watchparty/state', methods=['GET'])
@@ -3525,6 +3567,10 @@ def watchparty_state():
     for s in data.get("sessions", []):
         if s.get("session_id") == session_id:
             return jsonify({"success": True, "session": s})
+
+    remote = proxy_to_render_wp("state", method="GET", params={"session_id": session_id})
+    if remote and remote.get("success"):
+        return jsonify(remote)
 
     return jsonify({"success": False, "error": "Sessione non trovata"}), 404
 
@@ -3542,6 +3588,10 @@ def watchparty_end():
                 s["status"] = "ended"
                 save_watchparty_data(data)
                 return jsonify({"success": True})
+
+    remote = proxy_to_render_wp("end", method="POST", json_data={"session_id": session_id})
+    if remote and remote.get("success"):
+        return jsonify(remote)
 
     return jsonify({"success": False, "error": "Sessione non trovata"}), 404
 

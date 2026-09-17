@@ -10882,9 +10882,14 @@
 
       const RENDER_DEFAULT_HUB = 'https://serverwatchparty.onrender.com';
       function getWatchPartyHubBase() {
-        const savedHub = localStorage.getItem('sc_watchparty_hub_url');
+        let savedHub = localStorage.getItem('sc_watchparty_hub_url');
         if (savedHub && savedHub.trim()) {
-          return savedHub.trim().replace(/\/+$/, '');
+          const clean = savedHub.trim().replace(/\/+$/, '');
+          if (clean.includes('trycloudflare.com') || clean.includes('loca.lt') || clean.includes('localhost:') || clean.includes('127.0.0.1:')) {
+            localStorage.removeItem('sc_watchparty_hub_url');
+            return RENDER_DEFAULT_HUB;
+          }
+          return clean;
         }
         if (window.location.protocol === 'https:' && window.location.hostname.includes('onrender.com')) {
           return window.location.origin;
@@ -11172,13 +11177,31 @@
       }
 
       function showWatchPartyNotification(session) {
-        if (!wpNotification || watchPartyPendingSession?.session_id === session.session_id) return;
+        if (!wpNotification) return;
         watchPartyPendingSession = session;
-        document.getElementById('wp-notif-avatar').innerHTML = renderAvatarHtml(session.host_avatar);
-        document.getElementById('wp-notif-title').textContent = `${session.host_name} vuole guardare con te`;
-        document.getElementById('wp-notif-poster').src = session.item?.poster || 'https://via.placeholder.com/72x104';
-        document.getElementById('wp-notif-item-name').textContent = session.item?.name || session.item?.title || 'un contenuto';
+        const avatarEl = document.getElementById('wp-notif-avatar');
+        const titleEl = document.getElementById('wp-notif-title');
+        const posterEl = document.getElementById('wp-notif-poster');
+        const itemNameEl = document.getElementById('wp-notif-item-name');
+        if (avatarEl) avatarEl.innerHTML = renderAvatarHtml(session.host_avatar);
+        if (titleEl) titleEl.textContent = `${session.host_name} vuole guardare con te`;
+        if (posterEl) posterEl.src = session.item?.poster || 'https://via.placeholder.com/72x104';
+        if (itemNameEl) itemNameEl.textContent = session.item?.name || session.item?.title || 'un contenuto';
         wpNotification.classList.add('visible');
+        try {
+          const ctx = new (window.AudioContext || window.webkitAudioContext)();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+          osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
+          gain.gain.setValueAtTime(0.15, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.35);
+        } catch(e) {}
       }
 
       async function acceptWatchParty() {
@@ -11279,17 +11302,31 @@
       }
 
       async function pollWatchPartyInvites() {
-        if (!currentActiveProfile || watchPartySession || watchPartyPendingSession) return;
+        const profId = currentActiveProfile ? currentActiveProfile.id : (localStorage.getItem('sc_last_active_profile_id') || null);
+        if (!profId || watchPartySession) return;
         try {
-          const data = await wpRequest(`/api/watchparty/pending?profile_id=${encodeURIComponent(currentActiveProfile.id)}`);
-          if (data.sessions?.length) showWatchPartyNotification(data.sessions[0]);
-        } catch(e) {}
+          const data = await wpRequest(`/api/watchparty/pending?profile_id=${encodeURIComponent(profId)}`);
+          if (data && Array.isArray(data.sessions) && data.sessions.length > 0) {
+            const firstPending = data.sessions[0];
+            if (!watchPartyPendingSession || watchPartyPendingSession.session_id !== firstPending.session_id) {
+              console.log('[WatchParty] Nuovo invito in arrivo per ' + profId + ':', firstPending);
+              showWatchPartyNotification(firstPending);
+            }
+          } else {
+            if (watchPartyPendingSession && wpNotification && wpNotification.classList.contains('visible')) {
+              wpNotification.classList.remove('visible');
+              watchPartyPendingSession = null;
+            }
+          }
+        } catch(e) {
+          console.warn('[WatchParty] Errore verifica inviti:', e);
+        }
       }
 
       function startWatchPartyInvitePolling() {
-        clearInterval(watchPartyInviteTimer);
+        if (watchPartyInviteTimer) clearInterval(watchPartyInviteTimer);
         pollWatchPartyInvites();
-        watchPartyInviteTimer = setInterval(pollWatchPartyInvites, 3000);
+        watchPartyInviteTimer = setInterval(pollWatchPartyInvites, 2500);
       }
 
       async function pollWatchPartyState() {
@@ -12299,6 +12336,7 @@
         initCardScrollObserver();
         await loadProfilesFromServer();
         showProfilesGate(false);
+        startWatchPartyInvitePolling();
       }
 
       // Event Listeners for Profile System
