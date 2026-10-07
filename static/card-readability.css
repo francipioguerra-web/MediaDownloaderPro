@@ -1,0 +1,249 @@
+/* Soft, localized contrast behind copy; artwork outside the text stays sharp. */
+body :is(.hero__content, .details-hero-content, .prime-hover-content, .peek-info) {
+  position: relative;
+  isolation: isolate;
+}
+body :is(.hero__content, .details-hero-content, .prime-hover-content, .peek-info)::before {
+  content: "";
+  position: absolute;
+  inset: -18px -24px;
+  z-index: -1;
+  pointer-events: none;
+  background: rgba(12, 13, 17, .4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  mask-image: radial-gradient(ellipse at 45% 52%, #000 25%, rgba(0,0,0,.85) 48%, transparent 74%);
+  -webkit-mask-image: radial-gradient(ellipse at 45% 52%, #000 25%, rgba(0,0,0,.85) 48%, transparent 74%);
+}
+body .card-extra::before {
+  /* Sfondo molto più leggero per lasciar intravedere la copertina */
+  background: linear-gradient(to right, transparent 0%, rgba(12, 13, 17, 0.1) 30%, rgba(12, 13, 17, 0.35) 60%, rgba(12, 13, 17, 0.45) 100%);
+  /* Blur meno marcato */
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  /* Sfumatura morbida da sinistra a destra affinché il blur non tagli in modo netto */
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, transparent 20%, rgba(0,0,0,0.2) 35%, rgba(0,0,0,1) 55%, #000 100%);
+  mask-image: linear-gradient(to right, transparent 0%, transparent 20%, rgba(0,0,0,0.2) 35%, rgba(0,0,0,1) 55%, #000 100%);
+}
+body :is(.hero__plot, .card-extra-plot, .prime-hover-plot, .peek-plot),
+body #details-modal .modal-card .details-hero-plot {
+  color: #eef0f4 !important;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, .7);
+}
+body #hero-banner .hero__title { font-size: clamp(1.7rem, 3.9vw, 2.9rem) !important; }
+body #details-modal .modal-card .details-hero-title { font-size: clamp(2rem, 3.7vw, 3.15rem) !important; }
+body .card-extra-title { font-size: .95rem; }
+body .prime-hover-title { font-size: 1.05rem; }
+body .peek-title { font-size: 1.05rem; }
+
+
+/* Home desktop: keep the sharp portrait poster above the landscape artwork.
+   Both artwork layers share the same crop to avoid a seam as blur increases. */
+@media (min-width: 769px) {
+  #home-multi-rows .card .card-bg-layer {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  #home-multi-rows .card .card-bg-img {
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-position: center 25%;
+    opacity: 1;
+    filter: brightness(.85);
+    transform: scale(1.12);
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+
+  #home-multi-rows .card .card-bg-img--blur {
+    filter: blur(14px) brightness(.85);
+    -webkit-mask-image: linear-gradient(to right,
+      transparent 0%, transparent calc(var(--poster-w) - 100px),
+      rgba(0,0,0,.2) calc(var(--poster-w) - 50px),
+      rgba(0,0,0,.55) var(--poster-w),
+      rgba(0,0,0,.85) calc(var(--poster-w) + 65px),
+      #000 calc(var(--poster-w) + 140px));
+    mask-image: linear-gradient(to right,
+      transparent 0%, transparent calc(var(--poster-w) - 100px),
+      rgba(0,0,0,.2) calc(var(--poster-w) - 50px),
+      rgba(0,0,0,.55) var(--poster-w),
+      rgba(0,0,0,.85) calc(var(--poster-w) + 65px),
+      #000 calc(var(--poster-w) + 140px));
+  }
+
+  #home-multi-rows .card .card-poster::after,
+  #home-multi-rows .card .card-extra::before {
+    display: none;
+  }
+
+  #home-multi-rows .card:hover .card-poster {
+    -webkit-mask-image: none;
+    mask-image: none;
+    z-index: 3;
+    border-radius: 12px;
+    box-shadow: 10px 0 24px rgba(0, 0, 0, .38),
+      1px 0 0 rgba(255, 255, 255, .12);
+  }
+}
+
+/* Episode previews keep the existing compact layout on mobile. */
+.episode-cover-caption,
+.episode-hover-backdrop,
+.episode-hover-meta,
+.episode-hover-actions { display: none; }
+
+@media (min-width: 769px) {
+  #details-modal #episodes-container {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 16px;
+    min-height: 220px !important;
+    max-height: none !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding: 12px 8px 24px !important;
+  }
+  #details-modal #episodes-container::after { display: none !important; }
+  #details-modal .episodes-bottom-fade,
+  #details-modal .episodes-scroll-hint { display: none; }
+  #episodes-container .episode-card {
+    flex: 0 0 auto;
+    width: 280px;
+    height: 190px;
+    box-sizing: border-box;
+    padding: 0;
+    gap: 0;
+    overflow: hidden;
+    border-radius: 14px;
+    background: #181818;
+    isolation: isolate;
+    transition: width .4s ease, transform .3s ease, box-shadow .3s ease;
+  }
+  #episodes-container .episode-card:is(:hover, :focus-within) {
+    width: min(610px, calc(100% - 16px));
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px #0006;
+  }
+  #episodes-container .episode-thumb-wrap {
+    width: 278px;
+    height: 100%;
+    border-radius: 12px;
+    z-index: 2;
+    box-shadow: 8px 0 22px #0006;
+  }
+  #episodes-container .episode-thumb-play { display: none; }
+  #episodes-container .episode-cover-caption {
+    display: block;
+    position: absolute;
+    inset: auto 0 0;
+    padding: 32px 14px 14px;
+    background: linear-gradient(transparent, rgba(0,0,0,.88));
+    font-size: .88rem;
+    font-weight: 700;
+    line-height: 1.35;
+    color: #fff;
+  }
+  #episodes-container .episode-hover-backdrop {
+    display: block;
+    position: absolute;
+    inset: -16px;
+    width: calc(100% + 32px);
+    height: calc(100% + 32px);
+    object-fit: cover;
+    filter: blur(14px) brightness(.4);
+    z-index: -1;
+  }
+  #episodes-container .episode-info {
+    flex: 1 0 260px;
+    box-sizing: border-box;
+    height: 100%;
+    padding: 14px 18px;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity .2s ease;
+    gap: 6px;
+    position: relative;
+    z-index: 1;
+  }
+  #episodes-container .episode-card:is(:hover, :focus-within) .episode-info {
+    opacity: 1;
+    visibility: visible;
+  }
+  #episodes-container .episode-hover-meta {
+    display: block;
+    font-size: .7rem;
+    color: #ddd;
+  }
+  #episodes-container .episode-title { white-space: normal; }
+  #episodes-container .episode-plot {
+    -webkit-line-clamp: 3;
+    color: #eee;
+  }
+  #episodes-container .episode-hover-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: auto;
+    padding-top: 4px;
+  }
+  #episodes-container .episode-hover-actions .icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255,255,255,.3);
+    border-radius: 50%;
+    background: rgba(255,255,255,.1);
+    color: #fff;
+    cursor: pointer;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+  }
+  #episodes-container .episode-hover-actions .icon-btn:is(:hover, :focus-visible) {
+    background: rgba(255,255,255,.25);
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+  }
+  #episodes-container .ep-select-circle {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 4;
+    background: #181818;
+  }
+  #episodes-container .episode-card:focus-visible { outline: 2px solid white; outline-offset: -2px; }
+  @media (prefers-reduced-motion: reduce) {
+    #episodes-container .episode-card { transition: none; }
+  }
+}
+
+.episode-nav { display: none; }
+@media (min-width: 769px) {
+  .episodes-container-wrapper .episode-nav {
+    position: absolute;
+    top: 88px;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 1px solid rgba(255,255,255,.35);
+    border-radius: 50%;
+    background: rgba(20,21,27,.86);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    color: white;
+    box-shadow: 0 4px 14px #0006;
+    cursor: pointer;
+    transition: opacity .2s, background .2s;
+  }
+  .episodes-container-wrapper .episode-nav-prev { left: 0; }
+  .episodes-container-wrapper .episode-nav-next { right: 0; }
+  .episodes-container-wrapper .episode-nav:disabled { opacity: .25; cursor: default; }
+  .episodes-container-wrapper .episode-nav:hover:not(:disabled) { background: #383940; }
+  .episodes-container-wrapper .episode-nav:focus-visible { outline: 2px solid white; outline-offset: 3px; }
+  .episodes-container-wrapper .episode-nav[hidden] { display: none; }
+}

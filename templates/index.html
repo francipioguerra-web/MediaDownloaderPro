@@ -26,11 +26,13 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="StreamingCommunity">
-  <meta name="theme-color" content="#09090b">
-  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='110' fill='%2309090b'/%3E%3Cpath d='M140 120 L372 256 L140 392 Z' fill='%23e50914'/%3E%3C/svg%3E">
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='110' fill='%2309090b'/%3E%3Cpath d='M140 120 L372 256 L140 392 Z' fill='%23e50914'/%3E%3C/svg%3E">
+  <meta name="theme-color" content="#1f1f1f">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='110' fill='%231f1f1f'/%3E%3Cpath d='M140 120 L372 256 L140 392 Z' fill='%23e50914'/%3E%3C/svg%3E">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='110' fill='%231f1f1f'/%3E%3Cpath d='M140 120 L372 256 L140 392 Z' fill='%23e50914'/%3E%3C/svg%3E">
   
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <script src="https://www.youtube.com/iframe_api"></script>
   <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
@@ -40,9 +42,9 @@
 
   /* ===== 1. TOKENS ===== */
   :root {
-    --bg-base: #0b0b0f;
-    --bg-surface: #16161d;
-    --bg-elevated: #1e1e28;
+    --bg-base: #1f1f1f;
+    --bg-surface: #272727;
+    --bg-elevated: #323232;
     --accent: #e50914;
     --text-primary: #f5f5f7;
     --text-secondary: #9ca0ad;
@@ -63,7 +65,7 @@
     /* Aliases for backwards compatibility with modals and existing views */
     --bg-main: var(--bg-base);
     --bg-card: var(--bg-surface);
-    --bg-hover: var(--bg-elevated);
+    --bg-hover: var(--bg-elevated); 
     --accent-glow: rgba(229, 9, 20, 0.4);
     --accent-indigo: #6366f1;
     --accent-green: #22c55e;
@@ -74,17 +76,20 @@
     --radius-sm: 8px;
     --radius-md: 14px;
     --radius-lg: 20px;
-    --font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --font-family: 'Geist', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    background-color: #1f1f1f !important;
+    background: #1f1f1f !important;
+  }
   body {
-    background: var(--bg-base);
     color: var(--text-primary);
     font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
     min-height: 100vh;
-    padding-bottom: calc(var(--nav-height) + 24px);
+    padding-bottom: calc(var(--nav-height) + 36px);
     overflow-x: hidden;
   }
   img { display: block; max-width: 100%; }
@@ -353,6 +358,12 @@
     flex-shrink: 0;
     pointer-events: none;
   }
+  .btn {
+    display: inline-flex; align-items: center; gap: var(--space-2);
+    padding: 13px 28px; border-radius: var(--radius-pill);
+    font-weight: 700; font-size: 0.95rem;
+    transition: background var(--transition), transform var(--transition);
+  }
   .btn:active { transform: scale(0.97); }
   .btn--primary { background: #fff; color: #0b0b0f; }
   .btn--primary:hover { background: #d9d9de; }
@@ -380,6 +391,92 @@
   .home-sections-container { display: flex; flex-direction: column; gap: var(--space-8); margin-top: 30px; }
   .section--padded { padding-inline: var(--space-8); }
   .row-section { position: relative; }
+  /* Overlay blur per la ricerca mobile (solo sfondo, sotto la barra) */
+  #search-blur-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 49;
+    background: rgba(8, 8, 12, 0.45);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  #search-blur-overlay.is-visible { opacity: 1; pointer-events: auto; }
+  @media (prefers-reduced-motion: reduce) {
+    #search-blur-overlay { transition: none; }
+  }
+  /* Contenitore per ogni sezione home: riquadro con bordi arrotondati,
+     grigio più scuro dello sfondo, uguale per tutte le sezioni */
+  .home-sections-container > section {
+    position: relative;
+    background: linear-gradient(180deg, rgba(16, 17, 23, 0.96) 0%, rgba(10, 11, 15, 0.98) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    border-radius: 20px;
+    box-shadow: rgba(0, 0, 0, 0.5) 0px 24px 80px 0px;
+    margin-inline: var(--space-8);
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+  /* Titolo a cavallo del bordo: metà fuori e metà dentro il riquadro */
+  .home-sections-container > section .row__header,
+  .home-sections-container > section .row-section__header {
+    position: relative;
+    z-index: 1;
+    margin-top: -21px;
+    margin-bottom: 10px;
+  }
+  .home-sections-container > section .row__title,
+  .home-sections-container > section .row-section__header h2 {
+    display: inline-block;
+  }
+  /* Testi del modale dettagli: tutti bianchi con ombra nera per leggibilità */
+  #details-modal .modal-card h1,
+  #details-modal .modal-card h2,
+  #details-modal .modal-card h3,
+  #details-modal .modal-card p,
+  #details-modal .modal-card span,
+  #details-modal .modal-card div,
+  #details-modal .modal-card li,
+  #details-modal .modal-card button {
+    color: #fff !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 1px 8px rgba(0, 0, 0, 0.5) !important;
+  }
+  /* Eccezioni: controlli con sfondo chiaro mantengono il testo scuro */
+  #details-modal .modal-card .btn-modal-play,
+  #details-modal .modal-card .card-extra-play-btn,
+  #details-modal .modal-card .btn--primary {
+    color: #0b0c12 !important;
+    text-shadow: none !important;
+  }
+  @media (max-width: 768px) {
+    .home-sections-container > section {
+      margin-inline: 12px;
+      border-radius: 16px;
+    }
+    /* Niente riflessi sui box in versione mobile */
+    .home-sections-container > section::before {
+      display: none !important;
+      content: none !important;
+    }
+    /* La navbar resta fixed sopra ogni contenuto (le card arrivano a z-index 2000) */
+    body .bottom-nav {
+      z-index: 5000 !important;
+    }
+    .home-sections-container > section.section--padded {
+      padding-inline: 18px;
+    }
+    .home-sections-container > section .row__header,
+    .home-sections-container > section .row-section__header {
+      margin-top: -15px;
+      margin-bottom: 6px;
+    }
+    .home-sections-container > section .row__title,
+    .home-sections-container > section .row-section__header h2 {
+      display: inline-block;
+    }
+  }
   .row-section__header {
     display: flex; align-items: center; justify-content: space-between;
     padding-inline: var(--space-8); margin-bottom: var(--space-4);
@@ -528,11 +625,13 @@
     display: flex;
     align-items: stretch;
     height: calc(var(--poster-w) * 1.5);
-    border-radius: 16px;
+    border-radius: 14px;
     overflow: hidden;
-    background: #0d0e14;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
+    background: #181818;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow:
+      0 2px 6px rgba(0, 0, 0, 0.16),
+      0 8px 24px rgba(0, 0, 0, 0.26);
     transition: box-shadow 0.35s ease, border-color 0.35s ease, transform 0.35s var(--ease);
     will-change: transform, box-shadow;
   }
@@ -540,49 +639,128 @@
   .card:hover .card-corpo {
     transform: translateY(-6px);  /* si solleva dolcemente */
     border-color: rgba(255, 255, 255, 0.22);
-    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.85), 0 0 1px rgba(255, 255, 255, 0.12);
+    box-shadow:
+      0 4px 12px rgba(0, 0, 0, 0.20),
+      0 20px 42px rgba(0, 0, 0, 0.36),
+      inset 0 1px 1.5px rgba(255, 255, 255, 0.18);
   }
 
-  /* === Immagine di sfondo che riempie tutta la card con effetto scrim orizzontale come nell'header === */
+  /* === Immagine di sfondo che riempie tutta la card con gradiente blur ed effetto scrim orizzontale === */
   .card-bg-layer {
     position: absolute;
     inset: 0;
     z-index: 0;
     overflow: hidden;
     pointer-events: none;
+    border-radius: inherit;
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    -webkit-mask-image: linear-gradient(to right,
+      transparent 0%,
+      transparent calc(var(--poster-w) - 65px),
+      rgba(0, 0, 0, 0.4) calc(var(--poster-w) - 35px),
+      rgba(0, 0, 0, 0.85) calc(var(--poster-w) - 10px),
+      #000 calc(var(--poster-w) + 20px),
+      #000 100%
+    );
+    mask-image: linear-gradient(to right,
+      transparent 0%,
+      transparent calc(var(--poster-w) - 65px),
+      rgba(0, 0, 0, 0.4) calc(var(--poster-w) - 35px),
+      rgba(0, 0, 0, 0.85) calc(var(--poster-w) - 10px),
+      #000 calc(var(--poster-w) + 20px),
+      #000 100%
+    );
   }
+  .card:hover .card-bg-layer {
+    opacity: 1;
+  }
+
   .card-bg-img {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
     object-fit: cover;
     object-position: center 25%;
     transition: transform 0.5s var(--ease), opacity 0.35s ease;
-    opacity: 0.52;
-    filter: brightness(0.85);
+    opacity: 0.75;
+    filter: brightness(0.88);
+    -webkit-mask-image: linear-gradient(to right,
+      #000 0%,
+      #000 calc(var(--poster-w) + 10px),
+      transparent calc(var(--poster-w) + 65px)
+    );
+    mask-image: linear-gradient(to right,
+      #000 0%,
+      #000 calc(var(--poster-w) + 10px),
+      transparent calc(var(--poster-w) + 65px)
+    );
   }
   .card:hover .card-bg-img {
     transform: scale(1.05);
-    opacity: 0.72;
   }
+
+  /* Copertina sfumata con gradiente blur progressivo che inizia leggermente sopra la copertina */
+  .card-bg-img--blur {
+    position: absolute;
+    inset: -20px;
+    width: calc(100% + 40px);
+    height: calc(100% + 40px);
+    object-fit: cover;
+    object-position: center 25%;
+    filter: blur(24px) saturate(140%) brightness(0.85);
+    transition: transform 0.5s var(--ease);
+    opacity: 1;
+    -webkit-mask-image: linear-gradient(to right,
+      transparent 0%,
+      transparent calc(var(--poster-w) - 60px),
+      rgba(0, 0, 0, 0.4) calc(var(--poster-w) - 20px),
+      rgba(0, 0, 0, 0.85) calc(var(--poster-w) + 20px),
+      #000 calc(var(--poster-w) + 60px),
+      #000 100%
+    );
+    mask-image: linear-gradient(to right,
+      transparent 0%,
+      transparent calc(var(--poster-w) - 60px),
+      rgba(0, 0, 0, 0.4) calc(var(--poster-w) - 20px),
+      rgba(0, 0, 0, 0.85) calc(var(--poster-w) + 20px),
+      #000 calc(var(--poster-w) + 60px),
+      #000 100%
+    );
+    pointer-events: none;
+    z-index: 1;
+  }
+  .card:hover .card-bg-img--blur {
+    transform: scale(1.05);
+  }
+
   .card-scrim-horizontal {
     position: absolute;
     inset: 0;
     background:
-      linear-gradient(to right, rgba(11, 12, 18, 0.05) 0%, rgba(11, 12, 18, 0.38) 30%, rgba(11, 12, 18, 0.88) 55%, rgba(11, 12, 18, 0.98) 78%, #0b0c12 100%),
-      linear-gradient(to top, rgba(11, 12, 18, 0.82) 0%, transparent 38%);
+      linear-gradient(to right,
+        transparent 0%,
+        transparent calc(var(--poster-w) - 50px),
+        rgba(18, 19, 26, 0.25) var(--poster-w),
+        rgba(18, 19, 26, 0.58) calc(var(--poster-w) + 70px),
+        rgba(18, 19, 26, 0.85) 100%
+      ),
+      linear-gradient(to top, rgba(18, 19, 26, 0.75) 0%, transparent 36%);
     pointer-events: none;
+    z-index: 2;
   }
 
   /* === Poster: larghezza FISSA, non si deforma mai === */
   .card-poster {
     position: relative;
-    z-index: 1;
+    z-index: 2;
     flex: 0 0 var(--poster-w);
     width: var(--poster-w);
     height: 100%;
     min-width: 0;
     overflow: hidden;
-    background: var(--bg-surface);
+    background: transparent !important;
   }
 
   .card-poster img {
@@ -597,15 +775,41 @@
     transform: scale(1.05);
   }
 
-  /* Gradient sfumato sul bordo destro del poster verso lo scrim orizzontale */
+  /* Gradiente blur che parte leggermente sopra la copertina originale */
   .card-poster::after {
     content: '';
     position: absolute;
     top: 0; right: 0; bottom: 0;
-    width: 36px;
-    background: linear-gradient(to right, transparent, rgba(11, 12, 18, 0.92));
+    width: 60px;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.5) 25px, #000 100%);
+    mask-image: linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.5) 25px, #000 100%);
+    opacity: 0;
+    transition: opacity 0.35s ease;
     pointer-events: none;
-    z-index: 1;
+    z-index: 2;
+  }
+
+  .card:hover .card-poster::after {
+    opacity: 1;
+  }
+
+  .card:hover .card-poster {
+    -webkit-mask-image: linear-gradient(to right,
+      #000 0%,
+      #000 calc(100% - 55px),
+      rgba(0, 0, 0, 0.8) calc(100% - 30px),
+      rgba(0, 0, 0, 0.35) calc(100% - 10px),
+      transparent 100%
+    );
+    mask-image: linear-gradient(to right,
+      #000 0%,
+      #000 calc(100% - 55px),
+      rgba(0, 0, 0, 0.8) calc(100% - 30px),
+      rgba(0, 0, 0, 0.35) calc(100% - 10px),
+      transparent 100%
+    );
   }
 
   /* === Pannello info: FLUIDO (flex: 1).
@@ -633,7 +837,22 @@
     pointer-events: auto;
   }
 
+  /* Effetto vetro/blur addizionale sul pannello informazioni */
+  .card-extra::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    backdrop-filter: blur(14px) saturate(130%);
+    -webkit-backdrop-filter: blur(14px) saturate(130%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.4) 30px, #000 90px);
+    mask-image: linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.4) 30px, #000 90px);
+    pointer-events: none;
+    z-index: 0;
+  }
+
   .card-extra-content {
+    position: relative;
+    z-index: 1;
     width: 100%;
     height: 100%;
     display: flex;
@@ -814,6 +1033,7 @@
   }
 
   .card__title {
+    display: none !important;
     padding: 0 var(--space-1);
     font-weight: 700; font-size: 0.88rem;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -822,6 +1042,7 @@
   }
 
   .card__badge {
+    display: none !important;
     position: absolute; top: 6px; left: 6px;
     padding: 2px 6px; border-radius: 4px;
     background: rgba(14, 23, 33, 0.88); backdrop-filter: blur(8px);
@@ -1314,9 +1535,13 @@
     position: relative;
     padding-top: 14px;
     padding-bottom: 14px;
+    background: transparent !important;
+    box-shadow: none !important;
   }
   .rank-card .card {
     overflow: visible;
+    background: transparent !important;
+    box-shadow: none !important;
   }
   .rank-card:hover {
     z-index: 40;
@@ -1332,21 +1557,29 @@
     user-select: none;
     pointer-events: none;
     margin-bottom: 8px;
+    box-shadow: none !important;
   }
 
   /* ===== 9. CARD RIPRENDI ===== */
   .resume-card {
     display: grid; grid-template-columns: 160px 1fr; gap: var(--space-4);
     max-width: 460px; min-width: 360px; padding: var(--space-3);
-    border-radius: var(--radius-card); background: var(--bg-surface);
-    border: 1px solid rgb(255 255 255 / 0.06);
-    cursor: pointer; transition: background var(--transition);
+    border-radius: 14px; background: #262626;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18), 0 8px 24px rgba(0, 0, 0, 0.22);
+    cursor: pointer;
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
     flex-shrink: 0;
     scroll-snap-align: none !important;
     position: relative;
   }
-  .resume-card:hover { background: var(--bg-elevated); }
-  .resume-card__thumb { width: 160px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 8px; }
+  .resume-card:hover {
+    background: #2d2d2d;
+    border-color: rgba(255, 255, 255, 0.18);
+    transform: translateY(-3px);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22), 0 16px 36px rgba(0, 0, 0, 0.32), inset 0 1px 1px rgba(255, 255, 255, 0.12);
+  }
+  .resume-card__thumb { width: 160px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 10px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); }
   .resume-card__info { display: flex; flex-direction: column; justify-content: center; gap: var(--space-2); min-width: 0; }
   .resume-card__info h3 { font-size: 1rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; }
   .resume-card__info p { color: var(--text-secondary); font-size: 0.85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1768,9 +2001,9 @@
     }
 
     .modal-card {
-      background: rgba(14, 15, 20, 0.92);
-      backdrop-filter: blur(36px) saturate(190%);
-      -webkit-backdrop-filter: blur(36px) saturate(190%);
+      background: rgba(14, 15, 20, 0.55);
+      backdrop-filter: blur(48px) saturate(190%);
+      -webkit-backdrop-filter: blur(48px) saturate(190%);
       border: 1px solid rgba(255, 255, 255, 0.18);
       border-radius: 20px;
       width: min(880px, 92vw);
@@ -1779,7 +2012,7 @@
       margin: auto;
       box-sizing: border-box;
       overflow-y: auto;
-      box-shadow: 0 32px 80px rgba(0, 0, 0, 0.94);
+      box-shadow: 0 32px 80px rgba(0, 0, 0, 0.5);
       position: relative;
       transition: max-width 0.35s cubic-bezier(0.16, 1, 0.3, 1);
     }
@@ -2378,8 +2611,7 @@
       position: absolute;
       inset: 0;
       background: 
-        linear-gradient(0deg, #0e0f14 0%, rgba(14, 15, 20, 0.85) 15%, rgba(14, 15, 20, 0.4) 45%, rgba(14, 15, 20, 0.1) 75%, rgba(14, 15, 20, 0.25) 100%),
-        linear-gradient(90deg, #0e0f14 0%, rgba(14, 15, 20, 0.8) 35%, rgba(14, 15, 20, 0.4) 65%, transparent 100%);
+        linear-gradient(0deg, rgba(14, 15, 20, 0.7) 0%, rgba(14, 15, 20, 0.3) 25%, transparent 60%, transparent 100%);
       pointer-events: none;
       z-index: 1;
     }
@@ -6000,14 +6232,16 @@
         margin-bottom: 10px !important;
       }
       /* Hero Actions Mobile: soli cerchi con icone visibili e centrate, testo completamente rimosso */
-      .hero__actions {
+      .hero__actions,
+      body #hero-banner .hero__actions {
         display: flex !important;
         align-items: center !important;
         gap: 12px !important;
         flex-wrap: nowrap !important;
         justify-content: flex-start !important;
       }
-      .hero__actions .btn {
+      .hero__actions .btn,
+      body #hero-banner .hero__actions .btn {
         width: 44px !important;
         height: 44px !important;
         min-width: 44px !important;
@@ -6026,31 +6260,27 @@
         cursor: pointer !important;
         transition: transform 0.2s ease, background 0.2s ease !important;
       }
-      .hero__actions .btn:active {
+      .hero__actions .btn:active,
+      body #hero-banner .hero__actions .btn:active {
         transform: scale(0.92) !important;
       }
-      .hero__actions .btn .btn-text {
+      .hero__actions .btn .btn-text,
+      body #hero-banner .hero__actions .btn .btn-text {
         display: none !important;
         visibility: hidden !important;
         opacity: 0 !important;
         width: 0 !important;
         height: 0 !important;
-        overflow: hidden !important;
-        position: absolute !important;
-        pointer-events: none !important;
       }
       .hero__actions .btn svg,
-      .hero__actions .btn .btn-icon {
+      .hero__actions .btn .btn-icon,
+      body #hero-banner .hero__actions .btn svg,
+      body #hero-banner .hero__actions .btn .btn-icon {
         display: block !important;
         width: 22px !important;
         height: 22px !important;
-        min-width: 22px !important;
-        min-height: 22px !important;
-        max-width: 22px !important;
-        max-height: 22px !important;
         flex-shrink: 0 !important;
-        margin: 0 auto !important;
-        pointer-events: none !important;
+        margin: 0 !important;
       }
       .hero__nav-btn {
         display: none !important;
@@ -6099,6 +6329,8 @@
         aspect-ratio: 2 / 3 !important;
         border-radius: 8px !important;
         border: 1px solid rgba(255, 255, 255, 0.25) !important;
+      }
+      .card-poster {
         width: 100% !important;
         flex: 1 1 100% !important;
       }
@@ -6106,6 +6338,9 @@
         display: none !important;
       }
       .card-extra {
+        display: none !important;
+      }
+      .card-bg-img--blur {
         display: none !important;
       }
 
@@ -6152,6 +6387,16 @@
       /* ===== CONTINUA A GUARDARE & TOP 10 SU MOBILE: RIPRISTINO ESATTO COME PRIMA ===== */
       #section-continue-watching {
         overflow: visible !important;
+        margin-bottom: 4px !important;
+      }
+      #section-continue-watching .row__header,
+      #section-continue-watching .row-section__header {
+        padding: 0 16px 4px !important;
+        margin-bottom: 0 !important;
+      }
+      #section-continue-watching .row__title,
+      #section-continue-watching .row-section__header h2 {
+        font-size: 1rem !important;
       }
       #track-continue-watching {
         display: flex !important;
@@ -6162,18 +6407,18 @@
         height: auto !important;
         touch-action: pan-x pan-y !important;
         -webkit-overflow-scrolling: touch !important;
-        padding-top: 10px !important;
-        padding-bottom: 20px !important;
-        margin-bottom: 20px !important;
-        gap: 12px !important;
+        padding-top: 4px !important;
+        padding-bottom: 8px !important;
+        margin-bottom: 8px !important;
+        gap: 8px !important;
       }
       #track-continue-watching .resume-card {
         display: flex !important;
         flex-direction: column !important;
-        gap: 8px !important;
-        min-width: 180px !important;
-        width: 180px !important;
-        max-width: 180px !important;
+        gap: 5px !important;
+        min-width: 132px !important;
+        width: 132px !important;
+        max-width: 132px !important;
         flex-shrink: 0 !important;
         padding: 0 !important;
         background: transparent !important;
@@ -6207,19 +6452,17 @@
         width: 100% !important;
       }
       #track-continue-watching .resume-card .resume-card__info h3 {
-        font-size: 0.88rem !important;
+        font-size: 0.8rem !important;
         font-weight: 700 !important;
         color: #fff !important;
         white-space: nowrap !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
       }
-      #track-continue-watching .resume-card .resume-card__info p {
-        font-size: 0.74rem !important;
-        color: var(--text-secondary) !important;
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
+      #track-continue-watching .resume-card .resume-card__info p,
+      #track-continue-watching .resume-card .resume-card__meta,
+      #track-continue-watching .resume-card .resume-card__percent {
+        display: none !important;
       }
       #track-continue-watching .resume-card .resume-card__progress {
         height: 3px !important;
@@ -6232,16 +6475,6 @@
         height: 100% !important;
         background: var(--accent) !important;
       }
-      #track-continue-watching .resume-card .resume-card__meta {
-        display: flex !important;
-        justify-content: space-between !important;
-        font-size: 0.7rem !important;
-        color: var(--text-secondary) !important;
-      }
-      #track-continue-watching .resume-card .resume-card__percent {
-        color: var(--accent) !important;
-        font-weight: 700 !important;
-      }
 
       #section-top10 {
         overflow: visible !important;
@@ -6249,9 +6482,9 @@
       #track-top10 {
         display: flex !important;
         flex-direction: row !important;
-        align-items: flex-end !important;
+        align-items: stretch !important;
         overflow-x: auto !important;
-        overflow-y: hidden !important;
+        overflow-y: visible !important;
         height: auto !important;
         touch-action: pan-x pan-y !important;
         -webkit-overflow-scrolling: touch !important;
@@ -6328,7 +6561,265 @@
         display: none !important;
       }
 
-/* ============================================================= */
+      /* ============================================================= */
+      /* TOP 10 MOBILE: stesse card orizzontali delle righe home */
+      /* ============================================================= */
+      #track-top10 .rank-card .card-poster::after,
+      #track-top10 .rank-card .card-extra::before {
+        display: none !important;
+        content: none !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+      }
+#track-top10 .rank-card .card {
+        position: relative !important;
+        flex: 0 0 auto !important;
+        width: calc(100vw - 68px) !important;
+        max-width: 360px !important;
+        aspect-ratio: 16 / 9.5 !important;
+        scroll-snap-align: center !important;
+        scroll-snap-stop: always !important;
+        margin-right: -42px !important;
+        cursor: pointer !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        visibility: visible !important;
+        transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease !important;
+      }
+
+      #track-top10 .rank-card .card-corpo {
+        position: relative !important;
+        width: 100% !important;
+        height: 100% !important;
+        aspect-ratio: unset !important;
+        border-radius: 18px !important;
+        overflow: hidden !important;
+        background: #090a0f !important;
+        border: 1px solid rgba(255, 255, 255, 0.16) !important;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32), 0 0 1px rgba(255, 255, 255, 0.18) !important;
+      }
+      #track-top10 .rank-card .card-bg-layer {
+        display: block !important;
+        position: absolute !important;
+        inset: 0 !important;
+        z-index: 1 !important;
+        overflow: hidden !important;
+        opacity: 1 !important;
+        -webkit-mask-image: none !important;
+        mask-image: none !important;
+      }
+      #track-top10 .rank-card .card-bg-img {
+        display: block !important;
+        width: 100% !important;
+        height: 100% !important;
+        object-fit: cover !important;
+        object-position: center 25% !important;
+        opacity: 1 !important;
+        filter: none !important;
+        -webkit-filter: none !important;
+        transform: none !important;
+        -webkit-mask-image: none !important;
+        mask-image: none !important;
+      }
+      #track-top10 .rank-card .card-scrim-horizontal {
+        display: block !important;
+        position: absolute !important;
+        inset: 0 !important;
+        z-index: 2 !important;
+        background:
+          linear-gradient(to bottom, transparent 0%, transparent 40%, rgba(8, 9, 13, 0.4) 65%, rgba(8, 9, 13, 0.85) 85%, rgba(8, 9, 13, 0.98) 100%) !important;
+      }
+      #track-top10 .rank-card .card-poster {
+        position: absolute !important;
+        top: 12px !important;
+        left: 12px !important;
+        width: auto !important;
+        height: auto !important;
+        flex: none !important;
+        z-index: 4 !important;
+        background: transparent !important;
+        -webkit-mask-image: none !important;
+        mask-image: none !important;
+      }
+      #track-top10 .rank-card .card__poster {
+        display: none !important;
+      }
+      #track-top10 .rank-card .card__grid-overlay,
+      #track-top10 .rank-card .card__ribbon {
+        display: none !important;
+      }
+      #track-top10 .rank-card .card__badge {
+        display: inline-block !important;
+        padding: 4px 11px !important;
+        border-radius: 999px !important;
+        background: rgba(14, 14, 20, 0.88) !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        border: 1px solid rgba(255, 255, 255, 0.22) !important;
+        color: #fff !important;
+        font-size: 0.68rem !important;
+        font-weight: 800 !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.05em !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5) !important;
+      }
+      #track-top10 .rank-card .card-extra {
+        display: flex !important;
+        position: absolute !important;
+        inset: 0 !important;
+        z-index: 3 !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
+        padding: 12px 16px 14px !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        background: transparent !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+      }
+      #track-top10 .rank-card .card-extra-content {
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
+        height: 100% !important;
+        width: 100% !important;
+      }
+      #track-top10 .rank-card .card-extra-header {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 2px !important;
+      }
+      #track-top10 .rank-card .card-extra-title {
+        font-size: 1.15rem !important;
+        font-weight: 800 !important;
+        color: #fff !important;
+        line-height: 1.2 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.95), 0 1px 8px rgba(0, 0, 0, 0.5) !important;
+        margin-bottom: 2px !important;
+      }
+      #track-top10 .rank-card .card-extra-meta {
+        display: flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+        font-size: 0.74rem !important;
+        color: var(--text-secondary) !important;
+        flex-wrap: wrap !important;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 2px 8px rgba(0, 0, 0, 0.6) !important;
+      }
+      #track-top10 .rank-card .card-extra-badge {
+        display: none !important;
+      }
+      #track-top10 .rank-card .card-extra-year {
+        color: var(--text-secondary) !important;
+        font-weight: 600 !important;
+      }
+      #track-top10 .rank-card .card-extra-duration {
+        color: var(--text-secondary) !important;
+      }
+      #track-top10 .rank-card .card-extra-score {
+        color: #facc15 !important;
+        font-weight: 700 !important;
+      }
+      #track-top10 .rank-card .card-extra-hd {
+        display: none !important;
+      }
+      #track-top10 .rank-card .card-extra-genres {
+        font-size: 0.72rem !important;
+        color: var(--text-muted) !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        display: block !important;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 2px 8px rgba(0, 0, 0, 0.6) !important;
+      }
+      #track-top10 .rank-card .card-extra-body,
+      #track-top10 .rank-card .card-extra-plot {
+        display: none !important;
+      }
+      #track-top10 .rank-card .card-extra-actions {
+        display: flex !important;
+        align-items: center !important;
+        gap: 8px !important;
+        margin-top: auto !important;
+        margin-bottom: 0 !important;
+        pointer-events: auto !important;
+        position: relative !important;
+        z-index: 15 !important;
+      }
+      #track-top10 .rank-card .card-extra-play-btn {
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+        padding: 7px 15px !important;
+        font-size: 0.76rem !important;
+        font-weight: 700 !important;
+        border-radius: 999px !important;
+        background: #ffffff !important;
+        color: #0b0c12 !important;
+        border: none !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+        cursor: pointer !important;
+        pointer-events: auto !important;
+        touch-action: manipulation !important;
+        position: relative !important;
+        z-index: 16 !important;
+        transition: transform 0.15s ease, background 0.15s ease !important;
+      }
+      #track-top10 .rank-card .card-extra-play-btn:active {
+        transform: scale(0.94) !important;
+        background: #e50914 !important;
+        color: #ffffff !important;
+      }
+      #track-top10 .rank-card .card-extra-play-btn svg {
+        width: 12px !important;
+        height: 12px !important;
+        fill: currentColor !important;
+      }
+      #track-top10 .rank-card .card-btn-hover-wp,
+      #track-top10 .rank-card .card-btn-hover-fav,
+      #track-top10 .rank-card .card-btn-hover-info {
+        width: 34px !important;
+        height: 34px !important;
+        border-radius: 50% !important;
+        background: rgba(255, 255, 255, 0.2) !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        border: 1px solid rgba(255, 255, 255, 0.22) !important;
+        color: #fff !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        cursor: pointer !important;
+        pointer-events: auto !important;
+        touch-action: manipulation !important;
+        position: relative !important;
+        z-index: 16 !important;
+        transition: transform 0.15s ease, background 0.15s ease !important;
+      }
+      #track-top10 .rank-card .card-btn-hover-wp:active,
+      #track-top10 .rank-card .card-btn-hover-fav:active,
+      #track-top10 .rank-card .card-btn-hover-info:active {
+        transform: scale(0.92) !important;
+        background: rgba(255, 255, 255, 0.3) !important;
+      }
+      #track-top10 .rank-card .card-btn-hover-dl {
+        display: none !important;
+      }
+      #track-top10 .rank-card .card,
+      #track-top10 .rank-card .card-corpo,
+      #track-top10 .rank-card .card-extra,
+      #track-top10 .rank-card .card-extra-content {
+        touch-action: pan-x pan-y !important;
+        -webkit-user-select: none !important;
+        user-select: none !important;
+        -webkit-touch-callout: none !important;
+      }
+      #track-top10 .rank-card .card__info {
+        display: none !important;
+      }
       /* HOME ROWS MOBILE: MINI-HERO SOVRAPPOSTE + SCROLL NATIVO   */
       /* ============================================================= */
       #home-multi-rows .row-section:not(#section-continue-watching):not(#section-top10) .row__header,
@@ -6353,12 +6844,14 @@
         height: auto !important;
         padding: 8px 18px 24px !important;
         margin-bottom: 24px !important;
-        gap: 12px !important;
+        gap: 0 !important;
         touch-action: pan-x pan-y !important;
         -webkit-overflow-scrolling: touch !important;
         scrollbar-width: none !important;
         scroll-snap-type: x mandatory !important;
         scroll-padding-inline: 18px !important;
+        -webkit-mask-image: none !important;
+        mask-image: none !important;
       }
       #home-multi-rows .row:not(#track-continue-watching):not(#track-top10)::-webkit-scrollbar {
         display: none !important;
@@ -6372,16 +6865,39 @@
         aspect-ratio: 16 / 9.5 !important;
         scroll-snap-align: center !important;
         scroll-snap-stop: always !important;
-        margin-right: 0 !important;
+        margin-right: -42px !important;
         cursor: pointer !important;
         opacity: 1 !important;
         pointer-events: auto !important;
         visibility: visible !important;
-        transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease !important;
+        transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease !important;
       }
       #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card:last-child {
         margin-right: 0 !important;
       }
+
+      /* Base z-index stacking decrescente da sinistra a destra (sovrapposizione fluida a cascata) */
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) > .card:nth-child(1) { z-index: 50; }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) > .card:nth-child(2) { z-index: 49; }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) > .card:nth-child(3) { z-index: 48; }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) > .card:nth-child(4) { z-index: 47; }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) > .card:nth-child(5) { z-index: 46; }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) > .card:nth-child(6) { z-index: 45; }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) > .card:nth-child(7) { z-index: 44; }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) > .card:nth-child(8) { z-index: 43; }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) > .card:nth-child(9) { z-index: 42; }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) > .card:nth-child(10) { z-index: 41; }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) > .card:nth-child(11) { z-index: 40; }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) > .card:nth-child(12) { z-index: 39; }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) > .card:nth-child(13) { z-index: 38; }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) > .card:nth-child(14) { z-index: 37; }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) > .card:nth-child(15) { z-index: 36; }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) > .card:nth-child(16) { z-index: 35; }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) > .card:nth-child(17) { z-index: 34; }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) > .card:nth-child(18) { z-index: 33; }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) > .card:nth-child(19) { z-index: 32; }
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) > .card:nth-child(20) { z-index: 31; }
+
       #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-corpo {
         position: relative !important;
         width: 100% !important;
@@ -6391,7 +6907,7 @@
         overflow: hidden !important;
         background: #090a0f !important;
         border: 1px solid rgba(255, 255, 255, 0.16) !important;
-        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.75), 0 0 1px rgba(255, 255, 255, 0.15) !important;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32), 0 0 1px rgba(255, 255, 255, 0.18) !important;
       }
       #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-bg-layer {
         display: block !important;
@@ -6399,6 +6915,9 @@
         inset: 0 !important;
         z-index: 1 !important;
         overflow: hidden !important;
+        opacity: 1 !important;
+        -webkit-mask-image: none !important;
+        mask-image: none !important;
       }
       #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-bg-img {
         display: block !important;
@@ -6407,8 +6926,19 @@
         object-fit: cover !important;
         object-position: center 25% !important;
         opacity: 1 !important;
-        filter: brightness(1) contrast(1.02) !important;
+        filter: none !important;
+        -webkit-filter: none !important;
         transform: none !important;
+        -webkit-mask-image: none !important;
+        mask-image: none !important;
+      }
+      .card-bg-img--blur,
+      #home-multi-rows .row .card-bg-img--blur {
+        display: none !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
+        filter: none !important;
+        -webkit-filter: none !important;
       }
       #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-scrim-horizontal {
         display: block !important;
@@ -6416,7 +6946,7 @@
         inset: 0 !important;
         z-index: 2 !important;
         background:
-          linear-gradient(to bottom, transparent 0%, rgba(8, 9, 13, 0.18) 42%, rgba(8, 9, 13, 0.55) 72%, rgba(8, 9, 13, 0.88) 100%) !important;
+          linear-gradient(to bottom, transparent 0%, transparent 40%, rgba(8, 9, 13, 0.4) 65%, rgba(8, 9, 13, 0.85) 85%, rgba(8, 9, 13, 0.98) 100%) !important;
       }
       #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-poster {
         position: absolute !important;
@@ -6427,11 +6957,20 @@
         flex: none !important;
         z-index: 4 !important;
         background: transparent !important;
+        -webkit-mask-image: none !important;
+        mask-image: none !important;
       }
       #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card__poster {
         display: none !important;
       }
-      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-poster::after,
+      .card-poster::after,
+      #home-multi-rows .row .card-poster::after,
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-poster::after {
+        display: none !important;
+        content: none !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+      }
       #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card__grid-overlay,
       #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card__ribbon {
         display: none !important;
@@ -6440,9 +6979,9 @@
         display: inline-block !important;
         padding: 4px 11px !important;
         border-radius: 999px !important;
-        background: rgba(14, 14, 20, 0.78) !important;
-        backdrop-filter: blur(8px) !important;
-        -webkit-backdrop-filter: blur(8px) !important;
+        background: rgba(14, 14, 20, 0.88) !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
         border: 1px solid rgba(255, 255, 255, 0.22) !important;
         color: #fff !important;
         font-size: 0.68rem !important;
@@ -6450,6 +6989,14 @@
         text-transform: uppercase !important;
         letter-spacing: 0.05em !important;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5) !important;
+      }
+      .card-extra::before,
+      #home-multi-rows .row .card-extra::before,
+      #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-extra::before {
+        display: none !important;
+        content: none !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
       }
       #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-extra {
         display: flex !important;
@@ -6462,6 +7009,8 @@
         opacity: 1 !important;
         pointer-events: auto !important;
         background: transparent !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
       }
       #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-extra-content {
         display: flex !important;
@@ -6493,6 +7042,7 @@
         font-size: 0.74rem !important;
         color: var(--text-secondary) !important;
         flex-wrap: wrap !important;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 2px 8px rgba(0, 0, 0, 0.6) !important;
       }
       #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-extra-badge {
         display: none !important;
@@ -6509,13 +7059,7 @@
         font-weight: 700 !important;
       }
       #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-extra-hd {
-        padding: 1px 5px !important;
-        font-size: 0.62rem !important;
-        font-weight: 800 !important;
-        border-radius: 4px !important;
-        background: rgba(255, 255, 255, 0.16) !important;
-        color: #fff !important;
-        letter-spacing: 0.04em !important;
+        display: none !important;
       }
       #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-extra-genres {
         font-size: 0.72rem !important;
@@ -6524,6 +7068,7 @@
         overflow: hidden !important;
         text-overflow: ellipsis !important;
         display: block !important;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 2px 8px rgba(0, 0, 0, 0.6) !important;
       }
       #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-extra-body,
       #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card-extra-plot {
@@ -6574,9 +7119,9 @@
         width: 34px !important;
         height: 34px !important;
         border-radius: 50% !important;
-        background: rgba(255, 255, 255, 0.14) !important;
-        backdrop-filter: blur(8px) !important;
-        -webkit-backdrop-filter: blur(8px) !important;
+        background: rgba(255, 255, 255, 0.2) !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
         border: 1px solid rgba(255, 255, 255, 0.22) !important;
         color: #fff !important;
         display: inline-flex !important;
@@ -6616,9 +7161,7 @@
       }
 
       .card__info {
-        opacity: 1 !important;
-        visibility: visible !important;
-        pointer-events: auto !important;
+        display: none !important;
       }
       .card__media {
         border-radius: 6px !important;
@@ -6628,11 +7171,7 @@
         border-radius: 6px !important;
       }
       .card__title {
-        font-size: 0.76rem !important;
-        font-weight: 600 !important;
-        padding: 3px 1px 0 !important;
-        line-height: 1.2 !important;
-        margin-top: 0 !important;
+        display: none !important;
       }
       .card__meta {
         font-size: 0.68rem !important;
@@ -6879,22 +7418,17 @@
         display: none !important;
       }
 
-      /* Hero Vignette: perfect seamless transition to modal background #0e0f14 */
+      /* Hero Vignette: minimal fade for text readability only */
       #details-modal .details-hero-overlay {
         position: absolute !important;
         inset: 0 !important;
         background: 
           linear-gradient(to bottom, 
-            rgba(14, 15, 20, 0.2) 0%, 
-            rgba(14, 15, 20, 0.45) 40%, 
-            rgba(14, 15, 20, 0.85) 75%, 
-            #0e0f14 97%, 
-            #0e0f14 100%
-          ),
-          linear-gradient(to right, 
-            rgba(14, 15, 20, 0.85) 0%, 
-            rgba(14, 15, 20, 0.55) 50%, 
-            rgba(14, 15, 20, 0.25) 100%
+            transparent 0%, 
+            transparent 40%, 
+            rgba(14, 15, 20, 0.35) 70%, 
+            rgba(14, 15, 20, 0.65) 90%, 
+            rgba(14, 15, 20, 0.8) 100%
           ) !important;
         pointer-events: none !important;
         z-index: 1 !important;
@@ -7571,22 +8105,24 @@
       min-width: 220px;
       max-width: calc(100vw - 20px);
       box-sizing: border-box;
-      background: #0d0e14 !important;
-      border: 1px solid rgba(255, 255, 255, 0.1) !important;
-      border-radius: 16px !important;
-      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5) !important;
-      transform: translateZ(0);
-      border: 1px solid rgba(255, 255, 255, 0.12) !important;
-      border-radius: 18px;
-      box-shadow: 0 18px 45px rgba(0, 0, 0, 0.8), 0 0 1px rgba(255, 255, 255, 0.25);
+      background: rgba(255, 255, 255, 0.12) !important;
+      backdrop-filter: blur(30px) saturate(190%) contrast(105%) !important;
+      -webkit-backdrop-filter: blur(30px) saturate(190%) contrast(105%) !important;
+      border: 1px solid rgba(255, 255, 255, 0.28) !important;
+      border-radius: 20px !important;
+      box-shadow:
+        0 18px 45px rgba(0, 0, 0, 0.35),
+        inset 0 1px 1.5px rgba(255, 255, 255, 0.5),
+        inset 0 -1px 1px rgba(255, 255, 255, 0.15) !important;
       padding: 12px 10px;
       z-index: 10000;
+      transform: translateZ(0);
       transform-origin: bottom right;
-      animation: bottomPopupSlideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+      
     }
     @keyframes bottomPopupSlideUp {
       from {
-        opacity: 0;
+        opacity: 0 0.22s cubic-bezier(0.16, 1, 0.3, 1);
         transform: translateY(10px) scale(0.95);
       }
       to {
@@ -7599,7 +8135,7 @@
     }
     .bottom-profile-popup .profile-dropdown-header {
       padding: 4px 6px 10px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.15) !important;
       display: flex;
       flex-direction: column;
       gap: 2px;
@@ -7610,7 +8146,7 @@
       font-size: 0.68rem;
       text-transform: uppercase;
       letter-spacing: 0.06em;
-      color: #8e8e9e;
+      color: rgba(255, 255, 255, 0.65) !important;
       font-weight: 600;
     }
     .bottom-profile-popup .profile-dropdown-active-name {
@@ -7638,7 +8174,7 @@
       border-radius: 10px !important;
       background: transparent !important;
       border: none !important;
-      color: #d1d1db !important;
+      color: rgba(255, 255, 255, 0.88) !important;
       font-size: 0.88rem !important;
       font-weight: 500 !important;
       cursor: pointer !important;
@@ -7652,7 +8188,7 @@
       transition: all 0.15s ease !important;
     }
     .bottom-profile-popup .profile-dropdown-item:hover {
-      background: rgba(255, 255, 255, 0.09) !important;
+      background: rgba(255, 255, 255, 0.16) !important;
       color: #ffffff !important;
     }
     .bottom-profile-popup .profile-dropdown-item-avatar {
@@ -7673,7 +8209,7 @@
     }
     .bottom-profile-popup .profile-dropdown-divider {
       height: 1px !important;
-      background: rgba(255, 255, 255, 0.08) !important;
+      background: rgba(255, 255, 255, 0.15) !important;
       margin: 4px 0 !important;
       width: 100% !important;
     }
@@ -7687,7 +8223,7 @@
       border-radius: 10px !important;
       background: transparent !important;
       border: none !important;
-      color: #d1d1db !important;
+      color: rgba(255, 255, 255, 0.88) !important;
       font-size: 0.88rem !important;
       font-weight: 500 !important;
       cursor: pointer !important;
@@ -7701,7 +8237,7 @@
       transition: all 0.15s ease !important;
     }
     .bottom-profile-popup .profile-dropdown-action:hover {
-      background: rgba(255, 255, 255, 0.09) !important;
+      background: rgba(255, 255, 255, 0.16) !important;
       color: #ffffff !important;
     }
     .bottom-profile-popup .profile-dropdown-action svg {
@@ -8124,21 +8660,21 @@
     .card-scroll-settle:not(.is-settled) {
       opacity: 0 !important;
       transform: perspective(900px) translateZ(36px) translateY(-22px) rotateX(4.5deg) scale(1.03) !important;
-      box-shadow: 0 28px 56px rgba(0, 0, 0, 0.85) !important;
+      box-shadow: none !important;
       pointer-events: none !important;
     }
     .card-scroll-settle {
       transition: opacity 0.72s cubic-bezier(0.16, 1, 0.3, 1),
-                  transform 0.72s cubic-bezier(0.16, 1, 0.3, 1),
-                  box-shadow 0.72s cubic-bezier(0.16, 1, 0.3, 1) !important;
+                  transform 0.72s cubic-bezier(0.16, 1, 0.3, 1) !important;
       transition-delay: var(--settle-delay, 0ms) !important;
       will-change: transform, opacity;
+      box-shadow: none !important;
     }
     @media (min-width: 769px) {
       .card-scroll-settle.is-settled {
         opacity: 1;
         transform: perspective(900px) translateZ(0) translateY(0) rotateX(0deg) scale(1);
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        box-shadow: none !important;
       }
 
       /* HIGH-SPECIFICITY OVERRIDES FOR HOME ROW CARDS & TOP 10 RANK CARDS (SOLO DESKTOP) */
@@ -8146,22 +8682,22 @@
       .row .rank-card.card-scroll-settle:not(.is-settled) {
         opacity: 0 !important;
         transform: perspective(900px) translateZ(36px) translateY(-22px) rotateX(4.5deg) scale(1.03) !important;
-        box-shadow: 0 28px 56px rgba(0, 0, 0, 0.85) !important;
+        box-shadow: none !important;
         pointer-events: none !important;
       }
       .row .card.card-scroll-settle,
       .row .rank-card.card-scroll-settle {
         transition: opacity 0.72s cubic-bezier(0.16, 1, 0.3, 1),
-                    transform 0.72s cubic-bezier(0.16, 1, 0.3, 1),
-                    box-shadow 0.72s cubic-bezier(0.16, 1, 0.3, 1) !important;
+                    transform 0.72s cubic-bezier(0.16, 1, 0.3, 1) !important;
         transition-delay: var(--settle-delay, 0ms) !important;
         will-change: transform, opacity;
+        box-shadow: none !important;
       }
       .row .card.card-scroll-settle.is-settled,
       .row .rank-card.card-scroll-settle.is-settled {
         opacity: 1 !important;
         transform: perspective(900px) translateZ(0) translateY(0) rotateX(0deg) scale(1);
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        box-shadow: none !important;
         pointer-events: auto !important;
       }
       .row .card.card-scroll-settle.is-settled {
@@ -8243,7 +8779,7 @@
       background: linear-gradient(180deg, #131a27 0%, #0d121c 100%);
       border-radius: 14px;
       border: 1px solid rgba(255, 255, 255, 0.14);
-      box-shadow: 0 24px 60px -8px rgba(0, 0, 0, 0.88), 0 12px 28px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.08);
+      box-shadow: 0 20px 50px -6px rgba(0, 0, 0, 0.55), 0 10px 24px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.12);
       overflow: hidden;
       opacity: 0;
       visibility: hidden;
@@ -8487,48 +9023,245 @@
       }
     }
 
-    @media (hover: none) and (pointer: coarse), (max-width: 820px) {
+    /* ============================================================ */
+    /*  FLOATING NAVBAR (.bottom-nav) CON BLUR PURO SENZA TINTA SCURA */
+    /* Tasti: Home, Preferiti, Cerca, Download, Profilo             */
+    /* ============================================================ */
+    .bottom-nav {
+      position: fixed !important;
+      left: 50% !important;
+      right: auto !important;
+      bottom: calc(22px + env(safe-area-inset-bottom, 0px)) !important;
+      transform: translateX(-50%) !important;
+      width: fit-content !important;
+      min-width: 290px !important;
+      max-width: calc(100vw - 32px) !important;
+      height: 60px !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 14px !important;
+      padding: 0 18px !important;
+      border-radius: 999px !important;
+      z-index: 1000 !important;
+
+      /* BLUR PURO SENZA TINTA SCURA (cristallino frosted glass) */
+            background: transparent !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
+
+    .bottom-nav::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background:
+        linear-gradient(
+          135deg,
+          rgba(255, 255, 255, 0.30),
+          transparent 45%,
+          rgba(255, 255, 255, 0.08)
+        ),
+        rgba(255, 255, 255, 0.12) !important;
+      backdrop-filter: blur(30px) saturate(190%) contrast(105%);
+      -webkit-backdrop-filter: blur(30px) saturate(190%) contrast(105%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .bottom-nav > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    .bottom-nav .nav-item {
+      display: grid !important;
+      place-items: center !important;
+      width: 44px !important;
+      height: 44px !important;
+      border-radius: 50% !important;
+      color: rgba(255, 255, 255, 0.82) !important;
+      background: transparent !important;
+      border: none !important;
+      cursor: pointer !important;
+      padding: 0 !important;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    }
+
+    .bottom-nav .nav-item:hover {
+      color: #ffffff !important;
+      background: rgba(255, 255, 255, 0.18) !important;
+      transform: scale(1.08) !important;
+    }
+
+    .bottom-nav .nav-item.is-active,
+    .bottom-nav .nav-item.active {
+      color: #ffffff !important;
+      background: transparent !important;
+      box-shadow: none !important;
+    }
+
+    /* === NAV DROP INDICATOR (GOCCIA) === */
+    .nav-drop-indicator {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: radial-gradient(ellipse at 35% 30%, rgba(255,255,255,0.38), rgba(255,255,255,0.18) 70%);
+      box-shadow:
+        inset 0 1px 2px rgba(255,255,255,0.5),
+        inset 0 -1px 1px rgba(255,255,255,0.1),
+        0 4px 14px rgba(0,0,0,0.18);
+      z-index: 0;
+      pointer-events: none;
+      transition: transform 0.48s cubic-bezier(0.34, 1.56, 0.64, 1),
+                  width 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+                  height 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+                  border-radius 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+      will-change: transform, width, height, border-radius;
+    }
+    .nav-drop-indicator.is-morphing {
+      width: 52px;
+      height: 38px;
+      border-radius: 40%;
+    }
+    @media (max-width: 768px) {
+      .nav-drop-indicator {
+        width: 42px;
+        height: 42px;
+      }
+      .nav-drop-indicator.is-morphing {
+        width: 50px;
+        height: 36px;
+        border-radius: 40%;
+      }
+    }
+
+        /* POPUP PROFILO: stesso vetro della navbar */
+    .bottom-profile-popup {
+      background: transparent !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+      border: 1px solid rgba(255, 255, 255, 0.28) !important;
+      box-shadow:
+        0 14px 40px rgba(0, 0, 0, 0.18),
+        inset 0 1px 1.5px rgba(255, 255, 255, 0.5),
+        inset 0 -1px 1px rgba(255, 255, 255, 0.15) !important;
+      overflow: hidden;
+    }
+
+    .bottom-profile-popup::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background:
+        linear-gradient(
+          135deg,
+          rgba(255, 255, 255, 0.30),
+          transparent 45%,
+          rgba(255, 255, 255, 0.08)
+        ),
+        rgba(255, 255, 255, 0.12);
+      backdrop-filter: blur(30px) saturate(190%) contrast(105%);
+      -webkit-backdrop-filter: blur(30px) saturate(190%) contrast(105%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .bottom-profile-popup > * {
+      position: relative;
+      z-index: 1;
+    }
+    @media (max-width: 768px) {
       .bottom-nav {
-        position: fixed !important;
-        left: 50% !important;
-        right: auto !important;
         bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
-        transform: translateX(-50%) !important;
-        width: fit-content !important;
-        max-width: calc(100vw - 24px) !important;
-        min-width: 0 !important;
-        height: 64px !important;
+        height: 56px !important;
+        padding: 0 12px !important;
         gap: 8px !important;
-        justify-content: center !important;
-        padding: 0 8px !important;
-        background: rgb(22 22 29 / 0.6) !important;
-        backdrop-filter: blur(22px) saturate(180%) !important;
-        -webkit-backdrop-filter: blur(22px) saturate(180%) !important;
-        border: 1px solid rgb(255 255 255 / 0.14) !important;
-        border-top: 1px solid rgb(255 255 255 / 0.14) !important;
-        border-radius: 999px !important;
-        box-shadow: 0 14px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
       }
       .bottom-nav .nav-item {
-        width: 46px !important;
-        height: 46px !important;
-        position: relative !important;
-        z-index: 2 !important;
-        border-radius: 50% !important;
+        width: 42px !important;
+        height: 42px !important;
       }
-      .bottom-nav .nav-item.is-active,
-      .bottom-nav .nav-item.active {
-        background: rgb(255 255 255 / 0.14) !important;
-        color: #ffffff !important;
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18) !important;
-      }
+    }
+
+    /* ============================================================ */
+    /*  APPLE TV+ STYLE CLEAN AMBIENT CARD SHADOWS                 */
+    /* ============================================================ */
+    /* Rimuove qualsiasi ombra squadrata o alone nero dai contenitori esterni */
+    .card,
+    .row .card,
+    .rank-card,
+    .rank-card .card,
+    .card-scroll-settle {
+      box-shadow: none !important;
+      background: transparent !important;
+    }
+
+    /* Ombre morbide a strati sottili (stile Apple TV+) per il corpo delle card */
+    .card-corpo {
+      border-radius: 14px !important;
+      background: #181818 !important;
+      border: 1px solid rgba(255, 255, 255, 0.08) !important;
+      box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.18),
+        0 10px 24px rgba(0, 0, 0, 0.26) !important;
+      transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                  box-shadow 0.35s ease,
+                  border-color 0.35s ease !important;
+      will-change: transform, box-shadow;
+    }
+
+    .card:hover .card-corpo,
+    .rank-card:hover .card-corpo {
+      transform: translateY(-6px) !important;
+      border-color: rgba(255, 255, 255, 0.22) !important;
+      box-shadow:
+        0 4px 14px rgba(0, 0, 0, 0.22),
+        0 20px 42px rgba(0, 0, 0, 0.38),
+        inset 0 1px 1.5px rgba(255, 255, 255, 0.18) !important;
+    }
+
+    /* Continua a guardare: elevazione naturale morbida */
+    .resume-card {
+      border-radius: 14px !important;
+      background: #252525 !important;
+      border: 1px solid rgba(255, 255, 255, 0.08) !important;
+      box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.16),
+        0 8px 22px rgba(0, 0, 0, 0.22) !important;
+    }
+
+    .resume-card:hover {
+      background: #2b2b2b !important;
+      border-color: rgba(255, 255, 255, 0.18) !important;
+      box-shadow:
+        0 4px 14px rgba(0, 0, 0, 0.22),
+        0 16px 36px rgba(0, 0, 0, 0.32),
+        inset 0 1px 1px rgba(255, 255, 255, 0.12) !important;
+    }
+
+    .resume-card__thumb {
+      border-radius: 10px !important;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+    }
+
+    /* Numeri Top 10: nessun riquadro ombra, solo contorno elegante */
+    .rank-card__number {
+      box-shadow: none !important;
+      background: transparent !important;
+      text-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
     }
 
     /* ============================================================ */
     /* HERO + HEADER in stile riferimento (adattato al tema dark)  */
     /* ============================================================ */
 
-    /* ---- Header flottante a pill ---- */
+    /* ---- Header flottante a pill (base originale) ---- */
     .topbar {
       top: 14px;
       left: 20px;
@@ -8587,8 +9320,8 @@
     }
     .hero__scrim {
       background:
-        linear-gradient(to top, rgba(6, 6, 10, 0.94) 0%, rgba(6, 6, 10, 0.55) 28%, transparent 60%),
-        linear-gradient(to right, rgba(6, 6, 10, 0.55) 0%, transparent 55%);
+        linear-gradient(to top, #1f1f1f 0%, rgba(31, 31, 31, 0.55) 28%, transparent 60%),
+        linear-gradient(to right, rgba(31, 31, 31, 0.55) 0%, transparent 55%);
     }
     .hero__content {
       padding: 0 44px 48px;
@@ -8654,18 +9387,29 @@
         display: none;
       }
       .hero {
-        margin: calc(60px + env(safe-area-inset-top, 0px)) 10px 0 !important;
-        min-height: clamp(250px, 36vh, 320px) !important;
-        border-radius: 18px !important;
+        margin: calc(60px + env(safe-area-inset-top, 0px)) 10px 0;
+        min-height: clamp(250px, 36vh, 320px);
+        border-radius: 18px;
       }
       .hero__dots {
-        left: 50% !important;
-        right: auto !important;
-        transform: translateX(-50%) !important;
-        bottom: 14px !important;
+        left: 50%;
+        right: auto;
+        transform: translateX(-50%);
+        bottom: 14px;
       }
       .floating-search-bar {
         top: calc(72px + env(safe-area-inset-top, 0px)) !important;
+      }
+      /* Hero mobile: soli cerchi con icone */
+      .hero__actions .btn:not(.btn--icon) {
+        width: 46px !important;
+        height: 46px !important;
+        padding: 0 !important;
+        border-radius: 50% !important;
+        font-size: 0 !important;
+        line-height: 0 !important;
+        gap: 0 !important;
+        justify-content: center !important;
       }
     }
 
@@ -8713,59 +9457,6 @@
       }
       .topbar > div {
         display: none !important;
-      }
-      /* Hero mobile: soli cerchi con icone visibili e centrate, testo completamente rimosso */
-      .hero__actions {
-        display: flex !important;
-        align-items: center !important;
-        gap: 12px !important;
-        flex-wrap: nowrap !important;
-        justify-content: flex-start !important;
-      }
-      .hero__actions .btn {
-        width: 44px !important;
-        height: 44px !important;
-        min-width: 44px !important;
-        max-width: 44px !important;
-        padding: 0 !important;
-        border-radius: 50% !important;
-        display: inline-flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        flex-shrink: 0 !important;
-        box-sizing: border-box !important;
-        font-size: 0 !important;
-        line-height: 0 !important;
-        gap: 0 !important;
-        overflow: hidden !important;
-        cursor: pointer !important;
-        transition: transform 0.2s ease, background 0.2s ease !important;
-      }
-      .hero__actions .btn:active {
-        transform: scale(0.92) !important;
-      }
-      .hero__actions .btn .btn-text {
-        display: none !important;
-        visibility: hidden !important;
-        opacity: 0 !important;
-        width: 0 !important;
-        height: 0 !important;
-        overflow: hidden !important;
-        position: absolute !important;
-        pointer-events: none !important;
-      }
-      .hero__actions .btn svg,
-      .hero__actions .btn .btn-icon {
-        display: block !important;
-        width: 22px !important;
-        height: 22px !important;
-        min-width: 22px !important;
-        min-height: 22px !important;
-        max-width: 22px !important;
-        max-height: 22px !important;
-        flex-shrink: 0 !important;
-        margin: 0 auto !important;
-        pointer-events: none !important;
       }
     }
 
@@ -8819,9 +9510,9 @@
       border-radius: 12px;
       overflow: hidden;
       position: relative;
-      background: #0e0f15;
-      border: 1px solid rgba(255, 255, 255, 0.09);
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+      background: #181818;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.16), 0 8px 22px rgba(0, 0, 0, 0.24);
       transition: border-color 0.35s ease, box-shadow 0.35s ease;
       will-change: border-color, box-shadow;
     }
@@ -8830,7 +9521,7 @@
       content: '';
       position: absolute;
       inset: 0;
-      background: radial-gradient(circle at center, rgba(0, 0, 0, 0.15) 0%, rgba(0, 0, 0, 0.65) 100%);
+      background: radial-gradient(circle at center, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0.45) 100%);
       opacity: 0;
       transition: opacity 0.3s ease;
       z-index: 2;
@@ -8838,8 +9529,8 @@
     }
     #track-continue-watching .resume-card:hover .resume-card__media,
     #track-continue-watching .resume-card:hover > div:first-child {
-      border-color: rgba(255, 255, 255, 0.32);
-      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.8), 0 0 24px rgba(229, 9, 20, 0.25);
+      border-color: rgba(255, 255, 255, 0.24);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2), 0 16px 36px rgba(0, 0, 0, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.15);
     }
     #track-continue-watching .resume-card:hover .resume-card__media::before,
     #track-continue-watching .resume-card:hover > div:first-child::before {
@@ -9370,11 +10061,11 @@
       opacity: 0.55;
     }
 </style>
-
-
-
-
-
+  <link rel="stylesheet" href="/static/hover-cards.css?v=20261002-6">
+  <link rel="stylesheet" href="/static/card-readability.css?v=20261001-7">
+  <link rel="stylesheet" href="/static/mobile-layout.css?v=20261001-5">
+  <link rel="stylesheet" href="/static/player-postplay.css?v=1">
+  <script src="/static/js/watchparty-sync.js?v=6"></script>
 </head>
 <body>
 
@@ -9417,9 +10108,10 @@
       <circle cx="11" cy="11" r="8"></circle>
       <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
     </svg>
-    <input type="text" id="main-search-input" class="floating-search-input" placeholder="Cerca film o serie tv..." autocomplete="off" />
-    <button id="search-clear-btn" class="floating-search-clear hidden">&times;</button>
-  </div>
+          <input type="text" id="main-search-input" class="floating-search-input" placeholder="Cerca film o serie tv..." autocomplete="off" />
+          <button id="search-clear-btn" class="floating-search-clear hidden">&times;</button>
+        </div>
+        <div id="search-blur-overlay"></div>
 
   <!-- MAIN CONTAINER -->
   <main class="main-container">
@@ -10299,8 +10991,7 @@
             <p id="wp-invite-item-type" class="wp-invite-item-type"></p>
           </div>
         </div>
-
-        <!-- LINK STANZA & CONTROLLI WATCHPARTY -->
+                <!-- LINK STANZA & CONTROLLI WATCHPARTY -->
         <div class="wp-share-box">
           <div>
             <div style="font-size:0.7rem; color:rgba(255,255,255,0.6); text-transform:uppercase; letter-spacing:0.5px;">Codice Stanza</div>
@@ -10440,6 +11131,7 @@
 
     <!-- ===== 10. BOTTOM NAV ===== -->
   <nav class="bottom-nav">
+    <div class="nav-drop-indicator" id="nav-drop-indicator"></div>
     <a href="#" class="is-active nav-item" id="nav-home" aria-label="Home">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10.5 12 3l9 7.5V21H3z"/></svg>
     </a>
@@ -11078,6 +11770,15 @@
 
       // =============================================================
       // WATCHPARTY — host controls playback; guests follow the host.
+      // v3.0: WebSocket event-driven sync + HTTP polling fallback.
+      //
+      //               WATCH PARTY
+      //                    │
+      //         ┌──────────┴──────────┐
+      //         │                     │
+      //     Eventi immediati      Sync periodico
+      //         │                     │
+      //    play/pause/seek       correzione drift (~5s)
       // =============================================================
       let watchPartySession = null;
       let watchPartyRole = null;
@@ -11107,6 +11808,240 @@
       const wpInviteList = document.getElementById('wp-invite-profiles-list');
       const wpNotification = document.getElementById('watchparty-incoming-notification');
       const wpBanner = document.getElementById('watchparty-active-banner');
+
+      // ─── WebSocket Module ───────────────────────────────────────
+      // Event-driven sync via WebSocket with automatic HTTP fallback.
+      let wpWs = null;            // WebSocket instance
+      let wpWsConnected = false;  // true when WS is open and ready
+      let wpWsReconnectTimer = null;
+      let wpWsReconnectAttempts = 0;
+      const WP_WS_MAX_RECONNECT = 8;
+
+      function getWatchPartyWsUrl() {
+        const hubBase = getWatchPartyHubBase();
+        // Convert http(s):// to ws(s)://
+        const wsBase = hubBase.replace(/^http/, 'ws');
+        // Node server listens on root, Python on /ws/watchparty
+        // Try root first (works for Node); the server accepts both
+        return wsBase;
+      }
+
+      function wpWsConnect(sessionId, profileId, role) {
+        wpWsDisconnect();
+        wpWsReconnectAttempts = 0;
+
+        try {
+          const wsUrl = getWatchPartyWsUrl();
+          wpWs = new WebSocket(wsUrl);
+        } catch (e) {
+          console.warn('[WatchParty WS] WebSocket not available, using HTTP fallback');
+          wpWsConnected = false;
+          return;
+        }
+
+        wpWs.onopen = () => {
+          console.log('[WatchParty WS] Connected');
+          wpWsConnected = true;
+          wpWsReconnectAttempts = 0;
+
+          // Join the room
+          if (sessionId) {
+            wpWs.send(JSON.stringify({
+              type: 'join',
+              session_id: sessionId,
+              profile_id: profileId,
+              role: role
+            }));
+          }
+        };
+
+        wpWs.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            onWpWsMessage(data);
+          } catch (e) {}
+        };
+
+        wpWs.onclose = (event) => {
+          console.log('[WatchParty WS] Disconnected', event.code);
+          wpWsConnected = false;
+          // Auto-reconnect if still in a party
+          if (watchPartySession && wpWsReconnectAttempts < WP_WS_MAX_RECONNECT) {
+            const delay = Math.min(1000 * Math.pow(2, wpWsReconnectAttempts), 30000);
+            wpWsReconnectAttempts++;
+            console.log(`[WatchParty WS] Reconnecting in ${delay}ms (attempt ${wpWsReconnectAttempts})`);
+            wpWsReconnectTimer = setTimeout(() => {
+              if (watchPartySession) {
+                wpWsConnect(
+                  watchPartySession.session_id,
+                  currentActiveProfile ? currentActiveProfile.id : '',
+                  watchPartyRole || 'guest'
+                );
+              }
+            }, delay);
+          }
+          // If WS fails, HTTP polling is still running as fallback
+        };
+
+        wpWs.onerror = (err) => {
+          console.warn('[WatchParty WS] Error:', err);
+        };
+      }
+
+      function wpWsDisconnect() {
+        wpWsConnected = false;
+        clearTimeout(wpWsReconnectTimer);
+        wpWsReconnectTimer = null;
+        if (wpWs) {
+          try { wpWs.close(); } catch (e) {}
+          wpWs = null;
+        }
+      }
+
+      function wpWsSend(type, payload = {}) {
+        if (!wpWsConnected || !wpWs || wpWs.readyState !== WebSocket.OPEN) return false;
+        try {
+          wpWs.send(JSON.stringify({ type, ...payload }));
+          return true;
+        } catch (e) {
+          return false;
+        }
+      }
+
+      // Subscribe to invite notifications via WS (when idle, not in a party)
+      function wpWsSubscribeInvites(profileId) {
+        wpWsDisconnect();
+        wpWsReconnectAttempts = 0;
+
+        try {
+          const wsUrl = getWatchPartyWsUrl();
+          wpWs = new WebSocket(wsUrl);
+        } catch (e) {
+          wpWsConnected = false;
+          return;
+        }
+
+        wpWs.onopen = () => {
+          wpWsConnected = true;
+          wpWsReconnectAttempts = 0;
+          wpWs.send(JSON.stringify({
+            type: 'subscribe_invites',
+            profile_id: profileId
+          }));
+        };
+
+        wpWs.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            onWpWsMessage(data);
+          } catch (e) {}
+        };
+
+        wpWs.onclose = () => {
+          wpWsConnected = false;
+          // Reconnect for invite subscription
+          if (!watchPartySession && wpWsReconnectAttempts < WP_WS_MAX_RECONNECT) {
+            const delay = Math.min(2000 * Math.pow(2, wpWsReconnectAttempts), 60000);
+            wpWsReconnectAttempts++;
+            wpWsReconnectTimer = setTimeout(() => {
+              if (!watchPartySession && profileId) {
+                wpWsSubscribeInvites(profileId);
+              }
+            }, delay);
+          }
+        };
+
+        wpWs.onerror = () => {};
+      }
+
+      // ─── WS Message Router ─────────────────────────────────────
+      function onWpWsMessage(data) {
+        const { type } = data;
+
+        // Invite notification (while idle)
+        if (type === 'invite' && data.session) {
+          if (!watchPartySession) {
+            if (!watchPartyPendingSession || watchPartyPendingSession.session_id !== data.session.session_id) {
+              console.log('[WatchParty WS] Invite ricevuto:', data.session);
+              showWatchPartyNotification(data.session);
+            }
+          }
+          return;
+        }
+
+        // User joined notification
+        if (type === 'user_joined') {
+          console.log('[WatchParty WS] Utente connesso:', data.profile_id, data.role);
+          return;
+        }
+
+        // Full state snapshot (on join)
+        if (type === 'state' && data.session) {
+          watchPartySession = data.session;
+          return;
+        }
+
+        // Session ended
+        if (type === 'ended') {
+          clearWatchPartyLocal('WatchParty terminata dall\'host');
+          return;
+        }
+
+        // Playback events: play, pause, seek, sync
+        if (['play', 'pause', 'seek', 'sync'].includes(type)) {
+          if (!watchPartySession || watchPartyRole !== 'guest' || !webVideo) return;
+
+          const targetTime = Number(data.time) || 0;
+          const now = webVideo.currentTime || 0;
+
+          if (type === 'pause') {
+            if (Math.abs(now - targetTime) > 1.0) {
+              try { webVideo.currentTime = targetTime; } catch(e) {}
+            }
+            if (!webVideo.paused) webVideo.pause();
+          } else if (type === 'play') {
+            if (Math.abs(now - targetTime) > 2.0) {
+              try { webVideo.currentTime = targetTime; } catch(e) {}
+            }
+            if (webVideo.paused && webVideo.readyState >= 1) webVideo.play().catch(() => {});
+          } else if (type === 'seek') {
+            try { webVideo.currentTime = targetTime; } catch(e) {}
+            // Mantieni lo stato play/pausa corrente
+          } else if (type === 'sync') {
+            // Correzione drift periodica — correggi solo se > 3s di differenza
+            const compensated = targetTime + 0.3; // compensazione latenza WS
+            if (webVideo.readyState >= 2 && Math.abs(now - compensated) > 3) {
+              try { webVideo.currentTime = compensated; } catch(e) {}
+            }
+            if (data.paused === true && !webVideo.paused) webVideo.pause();
+            else if (data.paused === false && webVideo.paused && webVideo.readyState >= 1) webVideo.play().catch(() => {});
+          }
+
+          // Update local session state
+          if (watchPartySession) {
+            watchPartySession.current_time = targetTime;
+            if (data.paused !== undefined) watchPartySession.paused = data.paused;
+          }
+
+          wpGuestLastTime = webVideo.currentTime || 0;
+          wpGuestStallPolls = 0;
+          return;
+        }
+
+        // Episode change
+        if (type === 'episode_change') {
+          if (!watchPartySession || watchPartyRole !== 'guest') return;
+          if (data.item) {
+            const newSession = { ...watchPartySession, item: data.item };
+            if (data.stream_url) newSession.stream_url = data.stream_url;
+            newSession.current_time = 0;
+            newSession.paused = true;
+            guestFollowHostMedia(newSession);
+          }
+          return;
+        }
+      }
+      // ─── End WebSocket Module ───────────────────────────────────
 
       function wpItemSnapshot(item) {
         const source = item || currentActiveItem || {};
@@ -11499,12 +12434,13 @@
           watchPartyPendingSession = null;
           activateWatchParty(data.session, 'guest');
           currentActiveItem = data.session.item;
-          // Il guest NON avvia subito: attende l’URL condiviso dall’host
+          // Il guest NON avvia subito: attende l'URL condiviso dall'host
           // (evita schermo nero da estrazione fallita); fallback dopo 8s.
           wpGuestWaitSince = Date.now();
 
           if (typeof WatchParty !== 'undefined') {
             WatchParty.bindVideo(webVideo);
+            await WatchParty.connect();
             await WatchParty.joinRoom(data.session.session_id, currentActiveProfile);
           }
           showToast('Connessione al WatchParty...');
@@ -11527,18 +12463,12 @@
         wpGuestLastTime = -1; wpGuestStallPolls = 0; wpGuestLastReloadAt = 0;
         wpGuestLockToastShown = false;
         setWatchPartyBanner(session, role);
+        // ─── Connect WebSocket for real-time sync ───
+        const profileId = currentActiveProfile ? currentActiveProfile.id : '';
+        wpWsConnect(session.session_id, profileId, role);
+        // HTTP polling as safety net / fallback
         startWatchPartyStatePolling();
-
-        if (typeof WatchParty !== 'undefined') {
-          WatchParty.bindVideo(webVideo);
-          if (role === 'host') {
-            WatchParty.startHeartbeat();
-          } else {
-            WatchParty.stopHeartbeat();
-          }
-        } else if (role === 'host') {
-          startWatchPartyHeartbeat();
-        }
+        if (role === 'host') startWatchPartyHeartbeat();
       }
 
       function updateWatchPartyDriftUI(state, drift) {
@@ -11581,15 +12511,15 @@
             if (navigator.clipboard && navigator.clipboard.writeText) {
               navigator.clipboard.writeText(link).then(() => showToast('Link WatchParty copiato!'));
             } else {
-              prompt('Link stanza:', link);
+              prompt('Copia questo link WatchParty:', link);
             }
           };
         }
-
         const endButton = document.getElementById('wp-banner-end');
         if (endButton) {
+          // Host: termina il party. Guest: esce dal party (l'host continua).
           endButton.style.display = 'flex';
-          endButton.title = role === 'host' ? 'Termina sessione per tutti' : 'Esci dal party';
+          endButton.title = role === 'host' ? 'Termina sessione' : 'Esci dal party';
           endButton.setAttribute('aria-label', role === 'host' ? 'Termina WatchParty' : 'Esci dal WatchParty');
           endButton.onclick = () => endWatchParty(role === 'host');
         }
@@ -11597,27 +12527,24 @@
         applyGuestLock();
       }
 
-      // Guest: blocca i comandi di riproduzione se modalità 'host-only'
+      // Guest: blocca i comandi di riproduzione (solo l'host li ha).
       function applyGuestLock() {
         if (!playerModal) return;
-        const isGuestLocked = (watchPartyRole === 'guest' && !!watchPartySession && (!WatchParty || WatchParty.controlMode === 'host-only'));
-        playerModal.classList.toggle('wp-guest-lock', isGuestLocked);
-        if (isGuestLocked && !wpGuestLockToastShown) {
+        const isGuest = watchPartyRole === 'guest' && !!watchPartySession;
+        playerModal.classList.toggle('wp-guest-lock', isGuest);
+        if (isGuest && !wpGuestLockToastShown) {
           wpGuestLockToastShown = true;
-          showToast('Solo l’host può controllare la riproduzione');
+          showToast('Solo l\u2019host può controllare la riproduzione');
         }
       }
 
       function isWatchPartyGuest() {
-        return watchPartyRole === 'guest' && !!watchPartySession && (!WatchParty || WatchParty.controlMode === 'host-only');
+        return watchPartyRole === 'guest' && !!watchPartySession;
       }
 
       function clearWatchPartyLocal(message = '') {
         clearInterval(watchPartyStateTimer); clearInterval(watchPartyHeartbeatTimer);
         watchPartyStateTimer = null; watchPartyHeartbeatTimer = null;
-        if (typeof WatchParty !== 'undefined') {
-          WatchParty.leaveRoom();
-        }
         watchPartySession = null; watchPartyRole = null; watchPartyPlaybackStarted = false;
         watchPartyLastEpKey = '';
         wpGuestStarted = false; wpGuestMediaKey = ''; wpGuestWaitSince = 0;
@@ -11625,16 +12552,26 @@
         wpGuestLockToastShown = false;
         if (playerModal) playerModal.classList.remove('wp-guest-lock');
         if (wpBanner) wpBanner.classList.remove('visible');
+        // ─── Disconnect WS and re-subscribe for invites ───
+        wpWsDisconnect();
+        const profId = currentActiveProfile ? currentActiveProfile.id : null;
+        if (profId) {
+          wpWsSubscribeInvites(profId);
+        }
         if (message) showToast(message);
       }
 
       async function endWatchParty(notifyServer = true) {
         const session = watchPartySession;
         const canEnd = watchPartyRole === 'host';
-        clearWatchPartyLocal('WatchParty terminata');
+        // ─── Send end via WS first (instant), then HTTP fallback ───
         if (notifyServer && canEnd && session) {
-          try { await wpRequest('/api/watchparty/end', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({session_id: session.session_id}) }); } catch(e) {}
+          const wsSent = wpWsSend('end', { session_id: session.session_id });
+          if (!wsSent) {
+            try { await wpRequest('/api/watchparty/end', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({session_id: session.session_id}) }); } catch(e) {}
+          }
         }
+        clearWatchPartyLocal('WatchParty terminata');
       }
 
       async function pollWatchPartyInvites() {
@@ -11661,8 +12598,15 @@
 
       function startWatchPartyInvitePolling() {
         if (watchPartyInviteTimer) clearInterval(watchPartyInviteTimer);
+        // ─── Subscribe for WS push notifications ───
+        const profId = currentActiveProfile ? currentActiveProfile.id : (localStorage.getItem('sc_last_active_profile_id') || null);
+        if (profId && !watchPartySession) {
+          wpWsSubscribeInvites(profId);
+        }
+        // HTTP polling as fallback (slower when WS is active)
         pollWatchPartyInvites();
-        watchPartyInviteTimer = setInterval(pollWatchPartyInvites, 2500);
+        const interval = wpWsConnected ? 10000 : 2500;
+        watchPartyInviteTimer = setInterval(pollWatchPartyInvites, interval);
       }
 
       async function pollWatchPartyState() {
@@ -11670,6 +12614,8 @@
         const requestedSessionId = watchPartySession.session_id;
         try {
           const data = await wpRequest(`/api/watchparty/state?session_id=${encodeURIComponent(requestedSessionId)}`);
+          // Ignore a response that was already in flight when the party was
+          // closed or replaced. It must never resurrect the player.
           if (!watchPartySession || watchPartySession.session_id !== requestedSessionId) return;
           const session = data.session;
           watchPartySession = session;
@@ -11696,44 +12642,80 @@
       function startWatchPartyStatePolling() {
         clearInterval(watchPartyStateTimer);
         pollWatchPartyState();
-        watchPartyStateTimer = setInterval(pollWatchPartyState, 1500);
+        // When WS is connected, poll much less frequently (safety net only).
+        // When WS is down, poll aggressively as fallback.
+        const interval = wpWsConnected ? 10000 : 1500;
+        watchPartyStateTimer = setInterval(pollWatchPartyState, interval);
       }
 
       async function sendWatchPartyState(action = 'sync', force = false) {
-        if (!watchPartySession || !webVideo || watchPartySession.status !== 'active') return;
+        if (!watchPartySession || watchPartyRole !== 'host' || !webVideo || watchPartySession.status !== 'active') return;
+        const now = Date.now();
+        if (!force && now - watchPartyLastSentAt < 800) return;
+        watchPartyLastSentAt = now;
 
-        // 1. Invio istantaneo Socket.IO (0 latenza per azioni e sync)
-        if (typeof WatchParty !== 'undefined' && WatchParty.canControl()) {
-          if (action === 'play' || action === 'pause' || action === 'seek') {
-            WatchParty.sendAction(action, Number(webVideo.currentTime) || 0);
-          } else {
-            WatchParty.sendSync(force);
+        const currentTime = Number(webVideo.currentTime) || 0;
+        const isPaused = webVideo.paused;
+
+        // Check if episode changed — send as separate event
+        const epKey = `${currentActiveItem?.id || ''}::${currentActiveItem?.current_episode_id || ''}`;
+        if (epKey !== watchPartyLastEpKey) {
+          watchPartyLastEpKey = epKey;
+          const itemSnapshot = wpItemSnapshot(currentActiveItem);
+          // Try WS first for episode change
+          const wsSent = wpWsSend('episode_change', {
+            session_id: watchPartySession.session_id,
+            item: itemSnapshot,
+            stream_url: currentPartyStreamUrl || undefined
+          });
+          if (!wsSent) {
+            // HTTP fallback for episode change
+            try {
+              await wpRequest('/api/watchparty/sync', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                  session_id: watchPartySession.session_id,
+                  current_time: currentTime, paused: isPaused,
+                  action, item: itemSnapshot,
+                  stream_url: currentPartyStreamUrl || undefined
+                })
+              });
+            } catch(e) {}
           }
+          return;
         }
 
-        // 2. Fallback HTTP periodico solo per l'host
-        if (watchPartyRole !== 'host') return;
-        const now = Date.now();
-        if (!force && now - watchPartyLastSentAt < 1200) return;
-        watchPartyLastSentAt = now;
-        try {
-          const payload = {
-            session_id: watchPartySession.session_id, current_time: Number(webVideo.currentTime) || 0, paused: webVideo.paused, action
-          };
-          if (currentPartyStreamUrl) payload.stream_url = currentPartyStreamUrl;
-          // Condividi snapshot titolo/episodio solo quando cambia (es. episodio successivo).
-          const epKey = `${currentActiveItem?.id || ''}::${currentActiveItem?.current_episode_id || ''}`;
-          if (epKey !== watchPartyLastEpKey) {
-            watchPartyLastEpKey = epKey;
-            payload.item = wpItemSnapshot(currentActiveItem);
-          }
-          await wpRequest('/api/watchparty/sync', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
-        } catch(e) {}
+        // ─── Try WebSocket first (instant delivery) ───
+        const wsSent = wpWsSend(action, {
+          session_id: watchPartySession.session_id,
+          time: currentTime,
+          paused: isPaused,
+          stream_url: currentPartyStreamUrl || undefined
+        });
+
+        // ─── HTTP fallback if WS not available ───
+        if (!wsSent) {
+          try {
+            const payload = {
+              session_id: watchPartySession.session_id,
+              current_time: currentTime, paused: isPaused, action
+            };
+            if (currentPartyStreamUrl) payload.stream_url = currentPartyStreamUrl;
+            await wpRequest('/api/watchparty/sync', {
+              method: 'POST', headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify(payload)
+            });
+          } catch(e) {}
+        }
       }
 
       function startWatchPartyHeartbeat() {
         clearInterval(watchPartyHeartbeatTimer);
-        watchPartyHeartbeatTimer = setInterval(() => sendWatchPartyState('sync', true), 2500);
+        // With WS, instant events handle play/pause/seek.
+        // The heartbeat is only for periodic drift correction (~5s).
+        // Without WS, it's the main sync mechanism (keep at 1.5s as fallback).
+        const interval = wpWsConnected ? 5000 : 1500;
+        watchPartyHeartbeatTimer = setInterval(() => sendWatchPartyState('sync', true), interval);
       }
 
       function wpMediaKey(item) {
@@ -11741,11 +12723,13 @@
         return `${item.id || ''}::${item.current_episode_id || ''}`;
       }
 
+      // Guest: avvia/ricarica il media seguendo l'host (URL condiviso o estrazione propria).
       let wpGuestLastFollowAt = 0;
       function guestFollowHostMedia(session) {
         const item = session.item || {};
         const key = wpMediaKey(item);
         const nowTs = Date.now();
+        // Guardia anti-loop: mai riavviare lo stesso media a <10s dall'ultimo avvio.
         if (key && key === wpGuestMediaKey && nowTs - wpGuestLastFollowAt < 10000) return;
         wpGuestLastFollowAt = nowTs;
         currentActiveItem = item;
@@ -11757,6 +12741,7 @@
         wpGuestStallPolls = 0;
         if (url) {
           pendingExtraction = { m3u8: url, embed: item.current_watch_url || '', title: item.name || item.title || '' };
+          // Stessa splash di avvio del flusso normale.
           try {
             const gTitle = decodeHtml(item.name || item.title || 'In riproduzione');
             let gSub = '';
@@ -13128,12 +14113,15 @@
           if (cached && plotEl) {
             plotEl.textContent = decodeHtml(cached);
           }
-          return;
+          if (card && card.dataset.enriched) return;
         }
         if (item.plot && item.plot !== 'Nessuna trama disponibile.' && item.plot !== 'Trama non disponibile.' && item.plot.length > 25) {
           titlePlotCache.set(item.id, item.plot);
           if (plotEl) plotEl.textContent = decodeHtml(item.plot);
-          return;
+          if (item.poster && item.poster.includes('image.tmdb.org') && item.cover && item.cover.includes('image.tmdb.org')) {
+            if (card) card.dataset.enriched = 'true';
+            return;
+          }
         }
         try {
           const res = await fetch(`/api/sc/title/${item.id}?slug=${encodeURIComponent(item.slug || '')}`);
@@ -13154,18 +14142,58 @@
             }
             if (data.title.backdrop) item.backdrop = data.title.backdrop;
             if (data.title.cover) item.cover = data.title.cover;
+            if (data.title.poster) item.poster = data.title.poster;
             if (data.title.seasons) item.seasons = data.title.seasons;
+
+            // Aggiorna dinamicamente lo sfondo e la copertina della card con gli asset ad alta definizione
+            if (card) {
+              card.dataset.enriched = 'true';
+              const freshBg = getOptimizedPoster(data.title.backdrop || data.title.cover || '', true);
+              if (freshBg) {
+                card.querySelectorAll('.card-bg-img').forEach(img => {
+                  if (img && img.src !== freshBg) img.src = freshBg;
+                });
+              }
+              const freshPoster = getOptimizedPoster(data.title.poster || '', false);
+              if (freshPoster) {
+                const pImg = card.querySelector('.card__poster');
+                if (pImg && pImg.src !== freshPoster) pImg.src = freshPoster;
+              }
+            }
           }
         } catch(e) {}
       }
 
+      // Precaricamento e arricchimento automatico HD di tutte le card visibili all'apertura del sito (senza hover)
+      const cardAutoEnrichObserver = ('IntersectionObserver' in window)
+        ? new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+              if (entry.isIntersecting) {
+                const card = entry.target;
+                cardAutoEnrichObserver.unobserve(card);
+                const item = card._itemData;
+                if (item && item.id) {
+                  const plotEl = card.querySelector('.card__plot');
+                  ensureItemPlot(item, plotEl, card);
+                }
+              }
+            });
+          }, { rootMargin: '450px 0px' })
+        : null;
+
       // -------------------------------------------------------------
-      // IMAGE QUALITY OPTIMIZATION HELPER (Lowers bandwidth and avoids lag)
+      // IMAGE QUALITY OPTIMIZATION HELPER (High-Res Retina & 4K Studio Quality)
       // -------------------------------------------------------------
-      function getOptimizedPoster(url) {
+      function getOptimizedPoster(url, isBackdrop = false) {
         if (!url || typeof url !== 'string') return url || '';
         if (url.includes('image.tmdb.org/t/p/')) {
-          return url.replace(/\/t\/p\/(original|w780|w500)/, '/t/p/w342');
+          if (isBackdrop) {
+            // Per backdrops e sfondi orizzontali: usa w1280 o original
+            return url.replace(/\/t\/p\/(w342|w185|w500|w780)/, '/t/p/w1280');
+          } else {
+            // Per poster verticali: usa w780 (nitidezza da studio senza sfocature su Retina)
+            return url.replace(/\/t\/p\/(w342|w185|w500)/, '/t/p/w780');
+          }
         }
         return url;
       }
@@ -13213,24 +14241,25 @@
           ? titlePlotCache.get(item.id)
           : ((item.plot && item.plot !== 'Nessuna trama disponibile.' && item.plot !== 'Trama non disponibile.' && item.plot.length > 25) ? item.plot : 'Caricamento trama...');
 
-        const bgImgUrl = getOptimizedPoster(item.backdrop || item.cover || item.poster || '');
-        const posterImgUrl = getOptimizedPoster(item.poster || 'https://via.placeholder.com/342x513');
+        const bgImgUrl = getOptimizedPoster(item.backdrop || item.cover || item.poster || '', true);
+        const posterImgUrl = getOptimizedPoster(item.poster || 'https://via.placeholder.com/500x750', false);
         const isEager = (itemIndex !== null && itemIndex < 4) || (rankNumber !== null && rankNumber <= 4);
         const loadingAttr = isEager ? 'eager' : 'lazy';
         const priorityAttr = isEager ? 'fetchpriority="high"' : '';
 
         card.innerHTML = `
           <div class="card-corpo">
-            <!-- Immagine di sfondo che riempie tutta la card con effetto scrim orizzontale come nell'header -->
+            <!-- Immagine di sfondo che riempie tutta la card con gradiente blur ed effetto scrim orizzontale -->
             <div class="card-bg-layer">
               <img class="card-bg-img" src="${bgImgUrl}" data-fallback="${posterImgUrl}" alt="" loading="${loadingAttr}" decoding="async" ${priorityAttr} onerror="if(this.dataset.fallback && this.src !== this.dataset.fallback){this.src=this.dataset.fallback;}">
+              <img class="card-bg-img card-bg-img--blur" src="${bgImgUrl}" data-fallback="${posterImgUrl}" alt="" loading="${loadingAttr}" decoding="async" ${priorityAttr} onerror="if(this.dataset.fallback && this.src !== this.dataset.fallback){this.src=this.dataset.fallback;}">
               <div class="card-scrim-horizontal"></div>
             </div>
 
             <!-- Poster fisso con dissolvenza laterale -->
             <div class="card-poster">
               <img class="card__poster" src="${posterImgUrl}" alt="${cleanName}" loading="${loadingAttr}" decoding="async" ${priorityAttr}>
-              <span class="card__badge">${badgeType}</span>
+              <span class="card__badge">${rankNumber ? 'TOP ' + rankNumber : badgeType}</span>
               ${ribbonHtml}
               <!-- Overlay compatto per vista a griglia -->
               <div class="card__grid-overlay">
@@ -13288,6 +14317,14 @@
             <h3 class="card__title">${cleanName}</h3>
           </div>
         `;
+
+        // Precarica automaticamente poster e sfondo ad alta definizione all'apertura del sito
+        if (cardAutoEnrichObserver) {
+          cardAutoEnrichObserver.observe(card);
+        } else {
+          const plotEl = card.querySelector('.card__plot');
+          ensureItemPlot(item, plotEl, card);
+        }
 
         // Fetch della stessa trama della card espansa al mouseenter o focus
         card.addEventListener('mouseenter', () => {
@@ -20298,9 +21335,6 @@ if (currentActiveItem && webVideo && webVideo.currentTime > 2) {
         });
       }
 
-      // Stack mobile disattivato: scroll nativo delle righe.
-      // (initAllMobileRowStacks non più invocato)
-
       // =============================================================
       // MOBILE OVERLAP-ON-SCROLL: effetto sovraimpressione a carosello
       // con stacking piramidale per evitare che le card rimangano incastrate
@@ -20312,23 +21346,41 @@ if (currentActiveItem && webVideo && webVideo.currentTime > 2) {
           return Array.from(document.querySelectorAll('#home-multi-rows .row:not(#track-continue-watching):not(#track-top10)'));
         }
 
-        function updateRow(row) {
+        function targetTop10Row() {
+          return document.getElementById('track-top10');
+        }
+
+        function setCardsAnimated(row, on) {
+          if (!row) return;
+          row.querySelectorAll('.card').forEach(c => {
+            if (on) {
+              c.style.removeProperty('transition');
+            } else {
+              c.style.setProperty('transition', 'none', 'important');
+            }
+          });
+        }
+
+        function updateRow(row, unitSel, settled) {
+          const sel = unitSel || '.card';
           if (!row) return;
           if (window.innerWidth > 768 || reduceMotion) {
-            row.querySelectorAll('.card').forEach(c => {
+            row.querySelectorAll('.card, .rank-card').forEach(c => {
               c.style.transform = '';
               c.style.zIndex = '';
               c.style.opacity = '';
+              c.style.willChange = '';
+              c.style.removeProperty('transition');
             });
             return;
           }
 
-          const rowRect = row.getBoundingClientRect();
-          const rowCenter = rowRect.left + rowRect.width / 2;
-          const cards = Array.from(row.querySelectorAll('.card'));
+          const cards = Array.from(row.querySelectorAll(sel));
           if (cards.length === 0) return;
 
-          // Trova la card più vicina al centro (card attiva in primo piano)
+          const rowRect = row.getBoundingClientRect();
+          const rowCenter = rowRect.left + rowRect.width / 2;
+
           let activeIdx = 0;
           let minDiff = Infinity;
           const cardPositions = [];
@@ -20344,13 +21396,12 @@ if (currentActiveItem && webVideo && webVideo.currentTime > 2) {
             }
           });
 
-          // Applica lo stacking piramidale a TUTTE le card della riga:
-          // La card attiva ha lo z-index massimo (100) e sta sempre sopra ad entrambe le vicine.
-          // Le card scalano di z-index in modo strettamente decrescente man mano che ci si allontana.
-          // In questo modo NESSUNA card può MAI rimanere incastrata tra la precedente e la successiva!
+          // Stacking a cascata: ogni precedente sopra la successiva.
+          // A scroll fermo (settled) la card attiva va in primo piano per intero;
+          // durante lo scroll lo stacking resta stabile per non far flickerare.
           cardPositions.forEach(({ card, idx, diff, r }) => {
-            const distFromActive = Math.abs(idx - activeIdx);
-            const zIndex = Math.max(1, 100 - distFromActive * 2);
+            const isActive = settled !== false && idx === activeIdx;
+            const zIndex = isActive ? 2000 : Math.max(1, 1000 - idx);
             card.style.setProperty('z-index', String(zIndex), 'important');
 
             const cardWidth = r.width || 320;
@@ -20365,18 +21416,34 @@ if (currentActiveItem && webVideo && webVideo.currentTime > 2) {
         }
 
         function updateAll() {
-          targetRows().forEach(updateRow);
+          targetRows().forEach(row => updateRow(row));
+          updateRow(targetTop10Row());
+          // Numera i titoli Top 10 (1., 2., 3... dentro la card)
+          document.querySelectorAll('#track-top10 .rank-card .card-extra-title').forEach((el, i) => {
+            if (!el.textContent.startsWith(i + 1 + '. ')) {
+              el.textContent = (i + 1) + '. ' + el.textContent.replace(/^\d+\.\s*/, '');
+            }
+          });
         }
         window.updateMobileCardOverlap = updateAll;
 
-        // Ascolta lo scroll con throttling su requestAnimationFrame
-        targetRows().forEach(row => {
+        function watchRow(row, unitSel) {
+          if (!row || row.dataset.overlapWatched) return;
+          row.dataset.overlapWatched = 'true';
           let ticking = false;
           row.addEventListener('scroll', () => {
+            // Tracking diretto senza transizioni: niente lag né flicker durante lo scroll
+            setCardsAnimated(row, false);
+            clearTimeout(row._overlapSettleTimer);
+            row._overlapSettleTimer = setTimeout(() => {
+              // Scroll fermo: riattiva le transizioni e assesta il focus con animazione
+              setCardsAnimated(row, true);
+              updateRow(row, unitSel, true);
+            }, 140);
             if (!ticking) {
               ticking = true;
               requestAnimationFrame(() => {
-                updateRow(row);
+                updateRow(row, unitSel, false);
                 ticking = false;
               });
             }
@@ -20384,14 +21451,35 @@ if (currentActiveItem && webVideo && webVideo.currentTime > 2) {
 
           // Osserva nuovi elementi aggiunti asincronamente
           const obs = new MutationObserver(() => {
-            requestAnimationFrame(() => updateRow(row));
+            requestAnimationFrame(() => updateRow(row, unitSel, true));
           });
           obs.observe(row, { childList: true });
-        });
+        }
+
+        function watchTop10() {
+          // Stesso identico code path delle righe home
+          const t = targetTop10Row();
+          if (t) watchRow(t);
+        }
+
+        // Ascolta lo scroll con throttling su requestAnimationFrame
+        targetRows().forEach(row => watchRow(row));
+        watchTop10();
+
+        // Aggancia anche le righe create dopo il load + stacking immediato
+        const rowsHost = document.getElementById('home-multi-rows');
+        if (rowsHost) {
+          const hostObs = new MutationObserver(() => {
+            targetRows().forEach(row => watchRow(row));
+            watchTop10();
+            requestAnimationFrame(updateAll);
+          });
+          hostObs.observe(rowsHost, { childList: true });
+        }
 
         window.addEventListener('resize', () => {
           if (window.innerWidth > 768 || reduceMotion) {
-            document.querySelectorAll('#home-multi-rows .row .card').forEach(c => {
+            document.querySelectorAll('#home-multi-rows .row .card, #track-top10 .rank-card').forEach(c => {
               c.style.transform = '';
               c.style.zIndex = '';
               c.style.opacity = '';
@@ -20409,8 +21497,106 @@ if (currentActiveItem && webVideo && webVideo.currentTime > 2) {
         }
       })();
 
-      // UPDATE setActiveNav TO SUPPORT BOTH .active AND .is-active
+      // MOBILE: overlay blur all'apertura della ricerca + chiusura tastiera su scroll reale
+      (function initMobileSearchUx() {
+        const mq = window.matchMedia('(max-width: 768px)');
+        const isMobile = () => mq.matches;
+        const bar = document.getElementById('floating-search-bar');
+        const input = document.getElementById('main-search-input');
+        let overlay = document.getElementById('search-blur-overlay');
+        if (!overlay) {
+          overlay = document.createElement('div');
+          overlay.id = 'search-blur-overlay';
+          document.body.appendChild(overlay);
+        }
+        let lastFocusTime = 0;
+        let touchStartY = null;
+
+        function syncOverlay() {
+          if (!bar) {
+            overlay.classList.remove('is-visible');
+            return;
+          }
+          const open = !bar.classList.contains('hidden');
+          const typing = !!(input && input.value.trim() !== '');
+          overlay.classList.toggle('is-visible', open && !typing);
+        }
+
+        if (bar) {
+          new MutationObserver(syncOverlay).observe(bar, { attributes: true, attributeFilter: ['class'] });
+        }
+        document.addEventListener('focusin', (e) => {
+          if (e.target && e.target.id === 'main-search-input') {
+            lastFocusTime = Date.now();
+            syncOverlay();
+          }
+        });
+        if (input) {
+          input.addEventListener('input', syncOverlay);
+        }
+        overlay.addEventListener('click', () => {
+          if (bar) bar.classList.add('hidden');
+          if (input) input.blur();
+          syncOverlay();
+        });
+        window.addEventListener('resize', syncOverlay);
+        syncOverlay();
+
+        function dismissIfSearching() {
+          if (!isMobile()) return;
+          // Periodo di grazia dopo il focus: non chiudere la tastiera appena aperta
+          if (Date.now() - lastFocusTime < 600) return;
+          const ae = document.activeElement;
+          if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) {
+            if (ae.id === 'main-search-input' || ae.closest('#catalog-grid')) {
+              ae.blur();
+            }
+          }
+        }
+        document.addEventListener('touchstart', (e) => {
+          const t = e.touches && e.touches[0];
+          touchStartY = t ? t.clientY : null;
+        }, { passive: true });
+        document.addEventListener('touchmove', (e) => {
+          const t = e.touches && e.touches[0];
+          if (touchStartY === null || !t) return;
+          // Solo un vero trascinamento nasconde la tastiera
+          if (Math.abs(t.clientY - touchStartY) > 10) {
+            touchStartY = null;
+            dismissIfSearching();
+          }
+        }, { passive: true });
+        window.addEventListener('scroll', dismissIfSearching, { passive: true, capture: true });
+      })();
+
+      // UPDATE setActiveNav TO SUPPORT BOTH .active AND .is-active + DROP INDICATOR
       const origSetActiveNav = setActiveNav;
+      const navDropIndicator = document.getElementById('nav-drop-indicator');
+
+      function moveNavDrop(targetItem, animate) {
+        if (!navDropIndicator || !targetItem) return;
+        const nav = document.querySelector('.bottom-nav');
+        if (!nav) return;
+        const navRect = nav.getBoundingClientRect();
+        const itemRect = targetItem.getBoundingClientRect();
+        const dropW = navDropIndicator.offsetWidth;
+        const dropH = navDropIndicator.offsetHeight;
+        const x = (itemRect.left + itemRect.width / 2) - navRect.left - (dropW / 2);
+        const y = (itemRect.top + itemRect.height / 2) - navRect.top - (dropH / 2);
+
+        if (animate) {
+          navDropIndicator.classList.add('is-morphing');
+          setTimeout(() => navDropIndicator.classList.remove('is-morphing'), 220);
+        } else {
+          navDropIndicator.style.transition = 'none';
+        }
+        navDropIndicator.style.transform = `translate(${x}px, ${y}px)`;
+        if (!animate) {
+          navDropIndicator.offsetHeight; // force reflow
+          navDropIndicator.style.transition = '';
+        }
+      }
+
       setActiveNav = function(btn) {
         document.querySelectorAll('.bottom-nav a, .nav-item').forEach(b => {
           b.classList.remove('active');
@@ -20419,8 +21605,20 @@ if (currentActiveItem && webVideo && webVideo.currentTime > 2) {
         if (btn) {
           btn.classList.add('active');
           btn.classList.add('is-active');
+          moveNavDrop(btn, true);
         }
       };
+
+      // Posiziona la goccia sull'elemento attivo al caricamento (senza animazione)
+      requestAnimationFrame(() => {
+        const activeItem = document.querySelector('.bottom-nav .nav-item.is-active, .bottom-nav .nav-item.active');
+        if (activeItem) moveNavDrop(activeItem, false);
+      });
+      // Ricalcola posizione su resize
+      window.addEventListener('resize', () => {
+        const activeItem = document.querySelector('.bottom-nav .nav-item.is-active, .bottom-nav .nav-item.active');
+        if (activeItem) moveNavDrop(activeItem, false);
+      });
 
       // -------------------------------------------------------------
       // GEMINI AI CHATBOT CONTROLLER & CATALOG LINKING

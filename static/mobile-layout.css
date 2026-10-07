@@ -1,0 +1,60 @@
+/* Mobile catalog layout: retain existing theme and interaction handlers. */
+@media (max-width: 768px) {
+  body .topbar {
+    position: relative; display: flex; flex-wrap: wrap; justify-content: center;
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 16px 12px !important;
+    gap: 12px !important; background: transparent;
+  }
+  body .topbar .logo { display: none !important; }
+  body .topbar > div { display: none !important; }
+  body .topbar__nav { order: 3; flex: 0 0 100%; gap: 8px !important; padding: 0 !important; justify-content: center !important; }
+  body .topbar__nav a { display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 17px; border: 1px solid rgba(255,255,255,.24); border-radius: var(--radius-pill); font-size: .82rem; }
+  body .topbar__nav a.is-active { background: rgba(255,255,255,.16); border-color: rgba(255,255,255,.5); box-shadow: none; }
+  body .topbar__search { display: none !important; }
+  body .floating-search-bar { top: calc(66px + env(safe-area-inset-top, 0px)) !important; }
+  body #hero-banner { margin: 0 !important; min-height: 440px !important; height: min(118vw, 560px); border-radius: 18px !important; align-items: flex-end; }
+  body #hero-banner .hero__content { align-self: flex-end; align-items: center; text-align: center; width: 100%; padding: 24px 14px 34px !important; }
+  body #hero-banner .hero__scrim { background: linear-gradient(180deg, rgba(0,0,0,.04) 25%, rgba(15,15,18,.25) 45%, rgba(15,15,18,.94) 86%, #1f1f1f 100%); }
+  body #hero-banner .hero__title { font-size: clamp(1.7rem, 7vw, 2.5rem) !important; line-height: 1.08 !important; text-wrap: balance; margin-bottom: 10px !important; text-shadow: 0 2px 20px #000; }
+  body #hero-banner .hero__info { font-size: .8rem !important; margin-bottom: 16px !important; }
+  body #hero-banner .hero__plot { display: none !important; }
+  body #hero-banner .hero__actions { display: flex; flex-wrap: nowrap; justify-content: center !important; gap: 12px !important; width: 100%; }
+  body #hero-banner .hero__actions .btn { width: 46px !important; height: 46px !important; min-width: 0 !important; padding: 0 !important; font-size: 0 !important; border-radius: 50% !important; justify-content: center !important; }
+  body #hero-banner .hero__actions .btn svg { width: 22px !important; height: 22px !important; margin: 0 !important; }
+  body #hero-banner #btn-hero-quick-dl { font-size: 0 !important; gap: 0 !important; }
+  body #hero-banner .hero__actions .btn .btn-text { display: none !important; visibility: hidden !important; width: 0 !important; height: 0 !important; }
+  body #hero-banner .hero__dots { bottom: 10px !important; right: auto !important; left: 50% !important; transform: translateX(-50%) !important; }
+  /* Disable card hover expansion on mobile */
+  @media (hover: none) {
+    body #home-multi-rows .row .card:hover .card__poster,
+    body #home-multi-rows .row .card:hover .card__media {
+      transform: none !important;
+      box-shadow: none !important;
+    }
+    body #home-multi-rows .row .card:hover .card__overlay {
+      display: none !important;
+    }
+  }
+
+  body #home-multi-rows .home-sections-container { gap: 24px; margin-top: 26px; }
+  body #home-multi-rows .row-section .row-section__header { padding: 0 16px 10px !important; }
+  body #home-multi-rows .row-section .row-section__header h2 { font-size: 1.1rem !important; line-height: 1.3; letter-spacing: -.3px; }
+  body #home-multi-rows #track-top10 .rank-card { padding: 0 0 0 26px !important; scroll-snap-align: start; }
+  body #home-multi-rows #track-top10 .rank-card__number { display: block !important; position: absolute; left: 0 !important; bottom: -2px !important; margin: 0 !important; font-size: 5rem !important; line-height: 1 !important; z-index: 5 !important; color: var(--bg-base) !important; -webkit-text-stroke: 2px #b8b8bd !important; }
+  body #home-multi-rows #track-continue-watching .resume-card { min-width: 168px !important; width: 168px !important; max-width: 168px !important; transform: none !important; }
+  body .bottom-nav { width: calc(100% - 24px) !important; max-width: 480px; height: 60px !important; padding: 4px 8px !important; gap: 0 !important; bottom: calc(8px + env(safe-area-inset-bottom, 0px)) !important; justify-content: space-around !important; }
+  body .bottom-nav .nav-item { position: relative; display: flex; align-items: center; justify-content: center; width: 58px !important; height: 50px !important; border-radius: 16px; }
+  body .bottom-nav .nav-item::after { content: none; }
+  /* Reuse the desktop glass indicator and its existing moveNavDrop animation. */
+  body .bottom-nav .nav-drop-indicator { display: block; width: 44px; height: 44px; }
+  body .bottom-nav .nav-drop-indicator.is-morphing { width: 52px; height: 38px; }
+  body .bottom-profile-popup { bottom: 70px; max-width: calc(100vw - 32px); }
+}
+@media (max-width: 360px) {
+  body .topbar .logo { font-size: .88rem !important; }
+  body .topbar__nav a { padding-inline: 13px; }
+  body #hero-banner { margin-inline: 12px !important; min-height: 400px !important; }
+  body #hero-banner .hero__content { padding-inline: 10px !important; }
+  body #hero-banner .hero__actions .btn { font-size: 0 !important; }
+  body .bottom-nav .nav-item { width: 50px !important; }
+}
