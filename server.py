@@ -12,7 +12,7 @@ import argparse
 import socket
 
 # Import the existing Flask app and Engine from app.py
-from app import app, get_local_ip
+from app import app, get_local_ip, socketio, SOCKETIO_AVAILABLE
 
 def main():
     parser = argparse.ArgumentParser(description="StreamingCommunity Dedicated Web & Watch Party Server")
@@ -41,7 +41,12 @@ def main():
     print("=" * 65)
     print(" Premi CTRL+C per arrestare il server.\n")
 
-    app.run(host=args.host, port=port, debug=False, threaded=True)
+    if SOCKETIO_AVAILABLE and socketio:
+        print("  • WebSocket Real-Time Sync      : Attivo (Socket.IO)\n")
+        socketio.run(app, host=args.host, port=port, debug=False, allow_unsafe_werkzeug=True)
+    else:
+        print("  • WebSocket Real-Time Sync      : Standby / HTTP Fallback\n")
+        app.run(host=args.host, port=port, debug=False, threaded=True)
 
 if __name__ == "__main__":
     main()

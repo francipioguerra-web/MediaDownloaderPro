@@ -68,11 +68,27 @@ def get_ffmpeg_executable():
 if getattr(sys, 'frozen', False):
     template_folder = os.path.join(sys._MEIPASS, 'templates')
     static_folder = os.path.join(sys._MEIPASS, 'static')
+    app = Flask(__name__, template_folder=template_folder, static_folder=static_folder)
 else:
     app = Flask(__name__, template_folder='templates', static_folder='static')
 
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.jinja_env.auto_reload = True
+
+try:
+    from flask_socketio import SocketIO, emit, join_room, leave_room
+    socketio = SocketIO(
+        app,
+        cors_allowed_origins="*",
+        async_mode="threading",
+        ping_timeout=10,
+        ping_interval=5,
+        manage_session=False
+    )
+    SOCKETIO_AVAILABLE = True
+except Exception:
+    socketio = None
+    SOCKETIO_AVAILABLE = False
 
 @app.before_request
 def handle_preflight():
@@ -93,7 +109,10 @@ def add_cors_headers(response):
 DOWNLOADS_DIR = os.path.expanduser("~/Downloads")
 os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if getattr(sys, 'frozen', False):
+    BASE_DIR = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SEED_DIR = os.path.join(BASE_DIR, "user_data_seed")
 
 def ensure_seed_data(target_file, seed_filename):
@@ -3424,6 +3443,8 @@ def watchparty_create():
             "status": "waiting",
             "current_time": initial_time,
             "paused": True,
+            "guest_ready": False,
+            "guest_buffering": False,
             "last_action": None,
             "last_sync": int(_time.time() * 1000),
             "created_at": int(_time.time() * 1000)
@@ -3441,7 +3462,8 @@ def proxy_to_render_wp(endpoint, method="GET", json_data=None, params=None):
         import json
         import ssl
         ctx = ssl._create_unverified_context()
-        url = f"https://serverwatchparty.onrender.com/api/watchparty/{endpoint}"
+        hub_url = os.environ.get("RENDER_WP_HUB", "https://mediadownloaderpro-3q69.onrender.com").rstrip("/")
+        url = f"{hub_url}/api/watchparty/{endpoint}"
         if params:
             url += "?" + urllib.parse.urlencode(params)
         req_data = json.dumps(json_data).encode("utf-8") if json_data is not None else None
@@ -3537,6 +3559,10 @@ def watchparty_sync():
                     s["current_time"] = max(0, float(req["current_time"]))
                 if "paused" in req:
                     s["paused"] = bool(req["paused"])
+                if "guest_ready" in req:
+                    s["guest_ready"] = bool(req["guest_ready"])
+                if "guest_buffering" in req:
+                    s["guest_buffering"] = bool(req["guest_buffering"])
                 if req.get("stream_url"):
                     s["stream_url"] = str(req["stream_url"])[:2000]
                 if isinstance(req.get("item"), dict):
@@ -3594,6 +3620,258 @@ def watchparty_end():
         return jsonify(remote)
 
     return jsonify({"success": False, "error": "Sessione non trovata"}), 404
+
+@app.route('/watch/<room_id>', methods=['GET'])
+def watch_room_redirect(room_id):
+    from flask import redirect
+    return redirect(f"/?room={room_id}")
+
+SOCKET_ROOMS = {}
+SOCKET_ROOMS_LOCK = threading.RLock()
+
+def get_py_room_state(room):
+    if not room: return None
+    import time as _t
+    members = list(room.get("members", {}).values())
+    return {
+        "roomId": room.get("roomId"),
+        "playing": bool(room.get("playing")),
+        "currentTime": float(room.get("currentTime", 0.0)),
+        "playbackRate": float(room.get("playbackRate", 1.0)),
+        "updatedAt": int(room.get("updatedAt", 0)),
+        "serverTimestamp": int(_t.time() * 1000),
+        "hostId": room.get("hostSocketId"),
+        "hostProfile": room.get("hostProfile"),
+        "controlMode": room.get("controlMode", "host-only"),
+        "item": room.get("item"),
+        "streamUrl": room.get("streamUrl", ""),
+        "members": members
+    }
+
+if SOCKETIO_AVAILABLE and socketio:
+    @socketio.on('join-room')
+    def py_socket_join(payload):
+        import time as _t
+        from flask import request as req
+        sid = getattr(req, 'sid', None)
+        if not sid: return
+        raw_room = payload.get("roomId") or "GLOBAL" if isinstance(payload, dict) else "GLOBAL"
+        room_id = str(raw_room).strip().upper()
+        profile = payload.get("profile") if isinstance(payload, dict) else {"id": sid, "name": "Utente", "avatar": ""}
+        if not profile: profile = {"id": sid, "name": "Utente", "avatar": ""}
+        item = payload.get("item") if isinstance(payload, dict) else None
+        stream_url = payload.get("streamUrl", "") if isinstance(payload, dict) else ""
+        control_mode = payload.get("controlMode", "host-only") if isinstance(payload, dict) else "host-only"
+
+        join_room(f"room:{room_id}")
+
+        with SOCKET_ROOMS_LOCK:
+            room = SOCKET_ROOMS.get(room_id)
+            is_host = False
+            if not room:
+                is_host = True
+                room = {
+                    "roomId": room_id,
+                    "hostSocketId": sid,
+                    "hostProfile": profile,
+                    "controlMode": control_mode,
+                    "playing": False,
+                    "currentTime": float(payload.get("currentTime", 0.0) or 0.0) if isinstance(payload, dict) else 0.0,
+                    "playbackRate": 1.0,
+                    "updatedAt": int(_t.time() * 1000),
+                    "item": item,
+                    "streamUrl": stream_url,
+                    "members": {}
+                }
+                SOCKET_ROOMS[room_id] = room
+            else:
+                if not room.get("hostSocketId") or room.get("hostSocketId") not in room.get("members", {}):
+                    room["hostSocketId"] = sid
+                    room["hostProfile"] = profile
+                    is_host = True
+                else:
+                    is_host = (room.get("hostSocketId") == sid)
+                if is_host:
+                    if item: room["item"] = item
+                    if stream_url: room["streamUrl"] = stream_url
+
+            room["members"][sid] = {
+                "socketId": sid,
+                "profileId": profile.get("id", sid),
+                "name": profile.get("name", "Utente"),
+                "avatar": profile.get("avatar", ""),
+                "isHost": is_host,
+                "ready": True,
+                "buffering": False
+            }
+
+            state = get_py_room_state(room)
+
+        emit('room-state', state)
+        emit('user-joined', {
+            "user": room["members"][sid],
+            "members": state["members"]
+        }, to=f"room:{room_id}", include_self=False)
+        emit('members-update', {"members": state["members"]}, to=f"room:{room_id}")
+
+    @socketio.on('player-action')
+    def py_socket_action(data):
+        import time as _t
+        from flask import request as req
+        sid = getattr(req, 'sid', None)
+        if not sid or not isinstance(data, dict): return
+        room_id = str(data.get("roomId", "")).strip().upper()
+        with SOCKET_ROOMS_LOCK:
+            room = SOCKET_ROOMS.get(room_id)
+            if not room: return
+            is_host = (sid == room.get("hostSocketId"))
+            if room.get("controlMode") == "host-only" and not is_host:
+                emit('action-denied', {"reason": "Solo l'host può controllare la riproduzione"})
+                return
+
+            action = data.get("action")
+            try: cur_time = float(data.get("currentTime", room.get("currentTime", 0.0)))
+            except Exception: cur_time = room.get("currentTime", 0.0)
+
+            room["currentTime"] = max(0.0, cur_time)
+            if action == "play": room["playing"] = True
+            elif action == "pause": room["playing"] = False
+            room["playbackRate"] = float(data.get("playbackRate", 1.0) or 1.0)
+            room["updatedAt"] = int(_t.time() * 1000)
+
+        emit('player-action', {
+            "action": action,
+            "currentTime": room["currentTime"],
+            "playbackRate": room["playbackRate"],
+            "serverTimestamp": int(_t.time() * 1000),
+            "by": "host" if is_host else "guest"
+        }, to=f"room:{room_id}", include_self=False)
+
+    @socketio.on('sync')
+    def py_socket_sync(data):
+        import time as _t
+        from flask import request as req
+        sid = getattr(req, 'sid', None)
+        if not sid or not isinstance(data, dict): return
+        room_id = str(data.get("roomId", "")).strip().upper()
+        with SOCKET_ROOMS_LOCK:
+            room = SOCKET_ROOMS.get(room_id)
+            if not room: return
+            is_host = (sid == room.get("hostSocketId"))
+            if room.get("controlMode") == "host-only" and not is_host: return
+
+            try: cur_time = float(data.get("currentTime", room.get("currentTime", 0.0)))
+            except Exception: cur_time = room.get("currentTime", 0.0)
+
+            room["currentTime"] = max(0.0, cur_time)
+            room["playing"] = bool(data.get("playing"))
+            room["playbackRate"] = float(data.get("playbackRate", 1.0) or 1.0)
+            room["updatedAt"] = int(_t.time() * 1000)
+            if data.get("item"): room["item"] = data["item"]
+            if data.get("streamUrl"): room["streamUrl"] = data["streamUrl"]
+
+            resp = {
+                "currentTime": room["currentTime"],
+                "playing": room["playing"],
+                "playbackRate": room["playbackRate"],
+                "serverTimestamp": int(_t.time() * 1000),
+                "item": room["item"],
+                "streamUrl": room["streamUrl"]
+            }
+
+        emit('sync', resp, to=f"room:{room_id}", include_self=False)
+
+    @socketio.on('change-episode')
+    def py_socket_change_ep(data):
+        import time as _t
+        from flask import request as req
+        sid = getattr(req, 'sid', None)
+        if not sid or not isinstance(data, dict): return
+        room_id = str(data.get("roomId", "")).strip().upper()
+        with SOCKET_ROOMS_LOCK:
+            room = SOCKET_ROOMS.get(room_id)
+            if not room: return
+            is_host = (sid == room.get("hostSocketId"))
+            if room.get("controlMode") == "host-only" and not is_host:
+                emit('action-denied', {"reason": "Solo l'host può cambiare episodio"})
+                return
+
+            room["item"] = data.get("item", room.get("item"))
+            room["streamUrl"] = data.get("streamUrl", "")
+            room["currentTime"] = 0.0
+            room["playing"] = True
+            room["updatedAt"] = int(_t.time() * 1000)
+
+            resp = {
+                "item": room["item"],
+                "streamUrl": room["streamUrl"],
+                "currentTime": 0.0,
+                "serverTimestamp": int(_t.time() * 1000)
+            }
+
+        emit('change-episode', resp, to=f"room:{room_id}", include_self=False)
+
+    @socketio.on('set-control-mode')
+    def py_socket_ctrl_mode(data):
+        from flask import request as req
+        sid = getattr(req, 'sid', None)
+        if not sid or not isinstance(data, dict): return
+        room_id = str(data.get("roomId", "")).strip().upper()
+        with SOCKET_ROOMS_LOCK:
+            room = SOCKET_ROOMS.get(room_id)
+            if not room or sid != room.get("hostSocketId"): return
+            mode = "all" if data.get("controlMode") == "all" else "host-only"
+            room["controlMode"] = mode
+
+        emit('control-mode-changed', {"controlMode": mode}, to=f"room:{room_id}")
+
+    @socketio.on('member-status')
+    def py_socket_member_status(data):
+        from flask import request as req
+        sid = getattr(req, 'sid', None)
+        if not sid or not isinstance(data, dict): return
+        room_id = str(data.get("roomId", "")).strip().upper()
+        with SOCKET_ROOMS_LOCK:
+            room = SOCKET_ROOMS.get(room_id)
+            if not room: return
+            member = room.get("members", {}).get(sid)
+            if member:
+                if "ready" in data: member["ready"] = bool(data["ready"])
+                if "buffering" in data: member["buffering"] = bool(data["buffering"])
+
+        emit('member-status-update', {
+            "socketId": sid,
+            "ready": data.get("ready"),
+            "buffering": data.get("buffering")
+        }, to=f"room:{room_id}", include_self=False)
+
+    @socketio.on('disconnect')
+    def py_socket_disconnect():
+        from flask import request as req
+        sid = getattr(req, 'sid', None)
+        if not sid: return
+        with SOCKET_ROOMS_LOCK:
+            for room_id, room in list(SOCKET_ROOMS.items()):
+                if sid in room.get("members", {}):
+                    was_host = (sid == room.get("hostSocketId"))
+                    member = room["members"].pop(sid, None)
+                    if not room["members"]:
+                        SOCKET_ROOMS.pop(room_id, None)
+                    else:
+                        if was_host:
+                            next_sid = next(iter(room["members"]))
+                            room["hostSocketId"] = next_sid
+                            room["hostProfile"] = room["members"][next_sid]
+                            emit('host-changed', {
+                                "newHost": {"socketId": next_sid, "profile": room["members"][next_sid]}
+                            }, to=f"room:{room_id}")
+                        state = get_py_room_state(room)
+                        emit('user-left', {
+                            "socketId": sid,
+                            "name": member.get("name") if member else "Un partecipante",
+                            "members": state["members"]
+                        }, to=f"room:{room_id}")
+                        emit('members-update', {"members": state["members"]}, to=f"room:{room_id}")
 
 @app.route('/api/history', methods=['GET'])
 def get_history():
@@ -4145,12 +4423,15 @@ if __name__ == '__main__':
     time.sleep(1)
 
     webview.create_window(
-        title='StreamingCommunity Downloader & Streaming',
+        title='Netflix',
         url=f'http://127.0.0.1:{target_port}',
-        width=1280,
-        height=800,
+        width=1380,
+        height=880,
         resizable=True,
-        fullscreen=True,
-        min_size=(900, 600)
+        fullscreen=False,
+        min_size=(960, 600),
+        background_color='#09090b',
+        text_select=True,
+        zoomable=True
     )
-    webview.start()
+    webview.start(debug=False)

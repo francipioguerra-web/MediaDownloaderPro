@@ -33,6 +33,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <script src="https://www.youtube.com/iframe_api"></script>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script src="/static/watchparty.js"></script>
 
   <style>
 
@@ -1178,6 +1180,103 @@
     transition: all 0.2s;
   }
   .wp-banner-end-btn:hover { background: rgba(239,68,68,0.7); color: #fff; }
+  .wp-banner-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 999px;
+    margin-left: 2px;
+  }
+  .wp-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #10b981;
+    transition: background 0.3s;
+  }
+  .wp-status-dot.adjusting { background: #f59e0b; }
+  .wp-status-dot.seek { background: #ef4444; }
+
+  .wp-banner-room-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #c4b5fd;
+    background: rgba(167, 139, 250, 0.18);
+    border: 1px solid rgba(167, 139, 250, 0.35);
+    border-radius: 6px;
+    cursor: pointer;
+    margin-left: 2px;
+    letter-spacing: 0.5px;
+    transition: all 0.2s;
+  }
+  .wp-banner-room-badge:hover {
+    background: rgba(167, 139, 250, 0.35);
+    color: #fff;
+  }
+  .wp-share-box {
+    margin: 12px 0 14px;
+    padding: 10px 14px;
+    background: rgba(124, 58, 237, 0.12);
+    border: 1px solid rgba(167, 139, 250, 0.3);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .wp-share-code {
+    font-size: 0.88rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #c4b5fd;
+    font-family: monospace;
+  }
+  .wp-copy-link-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #7c3aed;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .wp-copy-link-btn:hover {
+    background: #6d28d9;
+  }
+  .wp-controls-mode-group {
+    margin: 10px 0 14px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.8);
+  }
+  .wp-controls-mode-options {
+    display: flex;
+    gap: 16px;
+    margin-top: 6px;
+  }
+  .wp-controls-mode-opt {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-weight: 600;
+  }
 
   /* ===== 8. TOP 10 ===== */
   #section-top10 {
@@ -9853,6 +9952,13 @@
     <div id="watchparty-active-banner" aria-live="polite">
       <div id="wp-banner-host-avatar" class="wp-banner-avatar" title="Host"></div>
       <div id="wp-banner-guest-avatar" class="wp-banner-avatar" title="Ospite"></div>
+      <div id="wp-banner-status-badge" class="wp-banner-status-badge" title="Stato sincronizzazione">
+        <span id="wp-status-dot" class="wp-status-dot"></span>
+        <span id="wp-status-text">In sync</span>
+      </div>
+      <button id="wp-banner-room-badge" class="wp-banner-room-badge" type="button" title="Clicca per copiare il link della stanza">
+        <span id="wp-banner-room-code">STANZA</span>
+      </button>
       <button id="wp-banner-end" class="wp-banner-end-btn" type="button" aria-label="Termina WatchParty" title="Termina sessione">×</button>
     </div>
 
@@ -10086,6 +10192,33 @@
             <p id="wp-invite-item-type" class="wp-invite-item-type"></p>
           </div>
         </div>
+
+        <!-- LINK STANZA & CONTROLLI WATCHPARTY -->
+        <div class="wp-share-box">
+          <div>
+            <div style="font-size:0.7rem; color:rgba(255,255,255,0.6); text-transform:uppercase; letter-spacing:0.5px;">Codice Stanza</div>
+            <div id="wp-invite-room-code" class="wp-share-code">WP-ROOM</div>
+          </div>
+          <button id="wp-invite-copy-link-btn" class="wp-copy-link-btn" type="button" title="Copia link per invitare amici">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+            <span>Copia Link</span>
+          </button>
+        </div>
+
+        <div class="wp-controls-mode-group">
+          <div style="font-weight:700;">Controlli Watch Party</div>
+          <div class="wp-controls-mode-options">
+            <label class="wp-controls-mode-opt">
+              <input type="radio" name="wp-ctrl-mode" id="wp-ctrl-host-only" value="host-only" checked>
+              <span>Solo host</span>
+            </label>
+            <label class="wp-controls-mode-opt">
+              <input type="radio" name="wp-ctrl-mode" id="wp-ctrl-all" value="all">
+              <span>Tutti</span>
+            </label>
+          </div>
+        </div>
+
         <div id="wp-invite-profiles-list" class="wp-invite-profiles-list"></div>
         <div style="margin-top: 14px; padding: 8px 12px; background: rgba(255,255,255,0.04); border-radius: 8px; border: 1px solid rgba(255,255,255,0.07); display: flex; align-items: center; justify-content: space-between; font-size: 0.74rem; color: rgba(255,255,255,0.6);">
           <span>🌐 Server Hub: <strong id="wp-hub-indicator" style="color: #60a5fa;">Render Cloud</strong></span>
@@ -10880,7 +11013,7 @@
         };
       }
 
-      const RENDER_DEFAULT_HUB = 'https://serverwatchparty.onrender.com';
+      const RENDER_DEFAULT_HUB = 'https://mediadownloaderpro-3q69.onrender.com';
       function getWatchPartyHubBase() {
         let savedHub = localStorage.getItem('sc_watchparty_hub_url');
         if (savedHub && savedHub.trim()) {
@@ -11030,6 +11163,27 @@
           wpInviteList.appendChild(button);
         });
 
+        // Genera Room Code e gestisci copia link
+        window._wpCurrentRoomCode = (typeof WatchParty !== 'undefined' && WatchParty.generateRoomId) ? WatchParty.generateRoomId() : ('WP-' + Math.random().toString(36).substring(2, 8).toUpperCase());
+        const roomCodeEl = document.getElementById('wp-invite-room-code');
+        if (roomCodeEl) roomCodeEl.textContent = window._wpCurrentRoomCode;
+
+        const copyLinkBtn = document.getElementById('wp-invite-copy-link-btn');
+        if (copyLinkBtn) {
+          copyLinkBtn.onclick = () => {
+            const link = `${window.location.origin}/?room=${encodeURIComponent(window._wpCurrentRoomCode)}`;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(link).then(() => {
+                showToast('Link stanza copiato negli appunti!');
+              }).catch(() => {
+                prompt('Copia questo link stanza:', link);
+              });
+            } else {
+              prompt('Copia questo link stanza:', link);
+            }
+          };
+        }
+
         const hubInd = document.getElementById('wp-hub-indicator');
         const customHub = localStorage.getItem('sc_watchparty_hub_url');
         if (hubInd) {
@@ -11163,15 +11317,40 @@
 
       async function createWatchParty(guest) {
         try {
+          const roomCode = window._wpCurrentRoomCode || (typeof WatchParty !== 'undefined' ? WatchParty.generateRoomId() : 'WP-' + Math.random().toString(36).substring(2, 8).toUpperCase());
+          const modeRadio = document.querySelector('input[name="wp-ctrl-mode"]:checked');
+          const ctrlMode = modeRadio ? modeRadio.value : 'host-only';
+
           const data = await wpRequest('/api/watchparty/create', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ host_profile_id: currentActiveProfile.id, guest_profile_id: guest.id, item: watchPartyItem })
+            body: JSON.stringify({
+              host_profile_id: currentActiveProfile.id,
+              guest_profile_id: guest ? guest.id : null,
+              item: watchPartyItem,
+              session_id: roomCode
+            })
           });
           closeWatchPartyInvite();
-          watchPartySession = data.session;
+          watchPartySession = data.session || { session_id: roomCode, item: watchPartyItem, status: 'waiting' };
+          watchPartySession.session_id = data.session_id || roomCode;
           watchPartyRole = 'host';
           watchPartyPlaybackStarted = false;
-          showToast(`Invito inviato a ${guest.name}`);
+
+          // Inizializza Socket.IO
+          if (typeof WatchParty !== 'undefined') {
+            WatchParty.bindVideo(webVideo);
+            await WatchParty.createRoom({
+              roomId: watchPartySession.session_id,
+              profile: currentActiveProfile,
+              item: watchPartyItem,
+              streamUrl: currentPartyStreamUrl,
+              controlMode: ctrlMode
+            });
+          }
+
+          if (guest) showToast(`Invito inviato a ${guest.name} (Stanza: ${watchPartySession.session_id})`);
+          else showToast(`Stanza WatchParty creata: ${watchPartySession.session_id}`);
+
           startWatchPartyStatePolling();
         } catch (err) { showToast(err.message); }
       }
@@ -11213,9 +11392,14 @@
           watchPartyPendingSession = null;
           activateWatchParty(data.session, 'guest');
           currentActiveItem = data.session.item;
-          // Il guest NON avvia subito: attende l'URL condiviso dall'host
+          // Il guest NON avvia subito: attende l’URL condiviso dall’host
           // (evita schermo nero da estrazione fallita); fallback dopo 8s.
           wpGuestWaitSince = Date.now();
+
+          if (typeof WatchParty !== 'undefined') {
+            WatchParty.bindVideo(webVideo);
+            await WatchParty.joinRoom(data.session.session_id, currentActiveProfile);
+          }
           showToast('Connessione al WatchParty...');
         } catch (err) { showToast(err.message); }
       }
@@ -11237,7 +11421,33 @@
         wpGuestLockToastShown = false;
         setWatchPartyBanner(session, role);
         startWatchPartyStatePolling();
-        if (role === 'host') startWatchPartyHeartbeat();
+
+        if (typeof WatchParty !== 'undefined') {
+          WatchParty.bindVideo(webVideo);
+          if (role === 'host') {
+            WatchParty.startHeartbeat();
+          } else {
+            WatchParty.stopHeartbeat();
+          }
+        } else if (role === 'host') {
+          startWatchPartyHeartbeat();
+        }
+      }
+
+      function updateWatchPartyDriftUI(state, drift) {
+        const dot = document.getElementById('wp-status-dot');
+        const text = document.getElementById('wp-status-text');
+        if (!dot || !text) return;
+        dot.className = 'wp-status-dot';
+        if (state === 'seek') {
+          dot.classList.add('seek');
+          text.textContent = 'Riallineamento...';
+        } else if (state === 'adjusting') {
+          dot.classList.add('adjusting');
+          text.textContent = (drift > 0) ? '+4% vel.' : '-4% vel.';
+        } else {
+          text.textContent = 'In sync';
+        }
       }
 
       function setWatchPartyBanner(session, role) {
@@ -11246,17 +11456,33 @@
         const guestAvatarEl = document.getElementById('wp-banner-guest-avatar');
         if (hostAvatarEl && session.host_avatar !== undefined) {
           hostAvatarEl.innerHTML = renderAvatarHtml(session.host_avatar);
-          hostAvatarEl.title = session.host_name || 'Host';
+          hostAvatarEl.title = '👑 ' + (session.host_name || 'Host');
         }
         if (guestAvatarEl && session.guest_avatar !== undefined) {
           guestAvatarEl.innerHTML = renderAvatarHtml(session.guest_avatar);
-          guestAvatarEl.title = session.guest_name || 'Ospite';
+          guestAvatarEl.title = '👤 ' + (session.guest_name || 'Ospite');
         }
+
+        const roomCodeEl = document.getElementById('wp-banner-room-code');
+        const roomBadgeEl = document.getElementById('wp-banner-room-badge');
+        if (roomCodeEl && session.session_id) {
+          roomCodeEl.textContent = session.session_id;
+        }
+        if (roomBadgeEl && session.session_id) {
+          roomBadgeEl.onclick = () => {
+            const link = `${window.location.origin}/?room=${encodeURIComponent(session.session_id)}`;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              navigator.clipboard.writeText(link).then(() => showToast('Link WatchParty copiato!'));
+            } else {
+              prompt('Link stanza:', link);
+            }
+          };
+        }
+
         const endButton = document.getElementById('wp-banner-end');
         if (endButton) {
-          // Host: termina il party. Guest: esce dal party (l'host continua).
           endButton.style.display = 'flex';
-          endButton.title = role === 'host' ? 'Termina sessione' : 'Esci dal party';
+          endButton.title = role === 'host' ? 'Termina sessione per tutti' : 'Esci dal party';
           endButton.setAttribute('aria-label', role === 'host' ? 'Termina WatchParty' : 'Esci dal WatchParty');
           endButton.onclick = () => endWatchParty(role === 'host');
         }
@@ -11264,24 +11490,27 @@
         applyGuestLock();
       }
 
-      // Guest: blocca i comandi di riproduzione (solo l'host li ha).
+      // Guest: blocca i comandi di riproduzione se modalità 'host-only'
       function applyGuestLock() {
         if (!playerModal) return;
-        const isGuest = watchPartyRole === 'guest' && !!watchPartySession;
-        playerModal.classList.toggle('wp-guest-lock', isGuest);
-        if (isGuest && !wpGuestLockToastShown) {
+        const isGuestLocked = (watchPartyRole === 'guest' && !!watchPartySession && (!WatchParty || WatchParty.controlMode === 'host-only'));
+        playerModal.classList.toggle('wp-guest-lock', isGuestLocked);
+        if (isGuestLocked && !wpGuestLockToastShown) {
           wpGuestLockToastShown = true;
-          showToast('Solo l\u2019host può controllare la riproduzione');
+          showToast('Solo l’host può controllare la riproduzione');
         }
       }
 
       function isWatchPartyGuest() {
-        return watchPartyRole === 'guest' && !!watchPartySession;
+        return watchPartyRole === 'guest' && !!watchPartySession && (!WatchParty || WatchParty.controlMode === 'host-only');
       }
 
       function clearWatchPartyLocal(message = '') {
         clearInterval(watchPartyStateTimer); clearInterval(watchPartyHeartbeatTimer);
         watchPartyStateTimer = null; watchPartyHeartbeatTimer = null;
+        if (typeof WatchParty !== 'undefined') {
+          WatchParty.leaveRoom();
+        }
         watchPartySession = null; watchPartyRole = null; watchPartyPlaybackStarted = false;
         watchPartyLastEpKey = '';
         wpGuestStarted = false; wpGuestMediaKey = ''; wpGuestWaitSince = 0;
@@ -11334,8 +11563,6 @@
         const requestedSessionId = watchPartySession.session_id;
         try {
           const data = await wpRequest(`/api/watchparty/state?session_id=${encodeURIComponent(requestedSessionId)}`);
-          // Ignore a response that was already in flight when the party was
-          // closed or replaced. It must never resurrect the player.
           if (!watchPartySession || watchPartySession.session_id !== requestedSessionId) return;
           const session = data.session;
           watchPartySession = session;
@@ -11366,9 +11593,21 @@
       }
 
       async function sendWatchPartyState(action = 'sync', force = false) {
-        if (!watchPartySession || watchPartyRole !== 'host' || !webVideo || watchPartySession.status !== 'active') return;
+        if (!watchPartySession || !webVideo || watchPartySession.status !== 'active') return;
+
+        // 1. Invio istantaneo Socket.IO (0 latenza per azioni e sync)
+        if (typeof WatchParty !== 'undefined' && WatchParty.canControl()) {
+          if (action === 'play' || action === 'pause' || action === 'seek') {
+            WatchParty.sendAction(action, Number(webVideo.currentTime) || 0);
+          } else {
+            WatchParty.sendSync(force);
+          }
+        }
+
+        // 2. Fallback HTTP periodico solo per l'host
+        if (watchPartyRole !== 'host') return;
         const now = Date.now();
-        if (!force && now - watchPartyLastSentAt < 800) return;
+        if (!force && now - watchPartyLastSentAt < 1200) return;
         watchPartyLastSentAt = now;
         try {
           const payload = {
@@ -11387,7 +11626,7 @@
 
       function startWatchPartyHeartbeat() {
         clearInterval(watchPartyHeartbeatTimer);
-        watchPartyHeartbeatTimer = setInterval(() => sendWatchPartyState('sync', true), 1500);
+        watchPartyHeartbeatTimer = setInterval(() => sendWatchPartyState('sync', true), 2500);
       }
 
       function wpMediaKey(item) {
@@ -11395,13 +11634,11 @@
         return `${item.id || ''}::${item.current_episode_id || ''}`;
       }
 
-      // Guest: avvia/ricarica il media seguendo l'host (URL condiviso o estrazione propria).
       let wpGuestLastFollowAt = 0;
       function guestFollowHostMedia(session) {
         const item = session.item || {};
         const key = wpMediaKey(item);
         const nowTs = Date.now();
-        // Guardia anti-loop: mai riavviare lo stesso media a <10s dall'ultimo avvio.
         if (key && key === wpGuestMediaKey && nowTs - wpGuestLastFollowAt < 10000) return;
         wpGuestLastFollowAt = nowTs;
         currentActiveItem = item;
@@ -11413,7 +11650,6 @@
         wpGuestStallPolls = 0;
         if (url) {
           pendingExtraction = { m3u8: url, embed: item.current_watch_url || '', title: item.name || item.title || '' };
-          // Stessa splash di avvio del flusso normale.
           try {
             const gTitle = decodeHtml(item.name || item.title || 'In riproduzione');
             let gSub = '';
@@ -11431,49 +11667,106 @@
         }
       }
 
+      // CORREZIONE DEL DRIFT A 3 LIVELLI (come specificato)
       function applyWatchPartyState(session) {
         if (!webVideo || watchPartyRole !== 'guest') return;
-        // Cambio titolo/episodio deciso dall'host → segui il media.
         if (wpGuestStarted && wpMediaKey(session.item) !== wpGuestMediaKey && session.item && session.item.id) {
           guestFollowHostMedia(session);
           return;
         }
         if (!wpGuestStarted || webVideo.readyState < 1) return;
-        const targetTime = Number(session.current_time) || 0;
-        const now = webVideo.currentTime || 0;
+
+        const serverTimestamp = Number(session.last_sync) || Date.now();
+        const elapsed = (Date.now() - serverTimestamp) / 1000;
+        const hostTime = Number(session.current_time) || 0;
+        const isPlaying = !session.paused;
+        const expectedTime = isPlaying ? (hostTime + elapsed) : hostTime;
+        const drift = expectedTime - webVideo.currentTime;
+
         if (session.paused) {
-          // Host in pausa: aggancio esatto al minutaggio, poi pausa (arriva con ritardo rete).
-          if (Math.abs(now - targetTime) > 1.2) {
-            try { webVideo.currentTime = targetTime; } catch(e) {}
+          if (Math.abs(drift) > 0.4) {
+            try { webVideo.currentTime = expectedTime; } catch(e) {}
           }
           if (!webVideo.paused) webVideo.pause();
+          webVideo.playbackRate = 1.0;
+          updateWatchPartyDriftUI('synced', 0);
           wpGuestLastTime = webVideo.currentTime || 0;
           wpGuestStallPolls = 0;
           return;
         }
-        // Host in play: compensa l'età del poll e correggi solo oltre soglia
-        // (evita micro-seek continui con connessioni diverse).
-        const compensated = targetTime + 0.8;
-        if (webVideo.readyState >= 2 && Math.abs(now - compensated) > 4) {
-          try { webVideo.currentTime = compensated; } catch(e) {}
-        }
-        if (webVideo.paused && webVideo.readyState >= 1) webVideo.play().catch(() => {});
-        // Watchdog stall: se l'host avanza ma il guest è fermo (nero/buffer),
-        // ricarica dal flusso condiviso dall'host (max 1 volta ogni 20s).
-        const advanced = Math.abs((webVideo.currentTime || 0) - wpGuestLastTime) > 0.05;
-        if (!webVideo.paused && webVideo.readyState < 3 && !advanced) {
-          wpGuestStallPolls++;
-          if (wpGuestStallPolls >= 4 && Date.now() - wpGuestLastReloadAt > 20000 && session.stream_url) {
-            wpGuestLastReloadAt = Date.now();
-            wpGuestStallPolls = 0;
-            guestFollowHostMedia(session);
-            return;
-          }
+
+        // Host in riproduzione: 3 livelli di correzione
+        if (Math.abs(drift) > 1.5) {
+          // 1. Fuori sync evidente -> Seek immediato
+          try { webVideo.currentTime = expectedTime; } catch(e) {}
+          webVideo.playbackRate = 1.0;
+          updateWatchPartyDriftUI('seek', drift);
+        } else if (Math.abs(drift) > 0.15) {
+          // 2. Piccola correzione invisibile via playbackRate
+          webVideo.playbackRate = drift > 0 ? 1.04 : 0.96;
+          updateWatchPartyDriftUI('adjusting', drift);
         } else {
-          wpGuestStallPolls = 0;
+          // 3. Sincronizzati
+          webVideo.playbackRate = 1.0;
+          updateWatchPartyDriftUI('synced', drift);
+        }
+
+        if (webVideo.paused && webVideo.readyState >= 1) {
+          webVideo.play().catch(() => {});
         }
         wpGuestLastTime = webVideo.currentTime || 0;
       }
+
+      // Registrazione ascoltatori modulo Socket.IO
+      if (typeof WatchParty !== 'undefined') {
+        WatchParty.on('drift-update', (data) => {
+          updateWatchPartyDriftUI(data.state, data.drift);
+        });
+        WatchParty.on('change-episode', (data) => {
+          if (data && data.item) {
+            guestFollowHostMedia({ item: data.item, stream_url: data.streamUrl, current_time: 0 });
+          }
+        });
+        WatchParty.on('control-mode-changed', (data) => {
+          const isGuestLocked = (data.controlMode === 'host-only' && watchPartyRole === 'guest');
+          if (playerModal) playerModal.classList.toggle('wp-guest-lock', isGuestLocked);
+          showToast(data.controlMode === 'all' ? 'Tutti possono controllare la riproduzione' : 'Solo l’host può controllare la riproduzione');
+        });
+        WatchParty.on('members-update', (data) => {
+          if (data && Array.isArray(data.members) && data.members.length > 0) {
+            const hostM = data.members.find(m => m.isHost);
+            const guestM = data.members.find(m => !m.isHost);
+            const hostAvatarEl = document.getElementById('wp-banner-host-avatar');
+            const guestAvatarEl = document.getElementById('wp-banner-guest-avatar');
+            if (hostAvatarEl && hostM) hostAvatarEl.innerHTML = renderAvatarHtml(hostM.avatar);
+            if (guestAvatarEl && guestM) guestAvatarEl.innerHTML = renderAvatarHtml(guestM.avatar);
+          }
+        });
+      }
+
+      // Gestore query parameter URL (?room=ABC123 o ?wp=ABC123)
+      function initUrlRoomHandler() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlRoom = urlParams.get('room') || urlParams.get('wp');
+        if (urlRoom && urlRoom.trim()) {
+          const targetRoom = urlRoom.trim().toUpperCase();
+          console.log('[WatchParty] Accesso tramite link stanza:', targetRoom);
+          setTimeout(async () => {
+            let userProf = currentActiveProfile;
+            if (!userProf) {
+              const list = availableProfiles || [];
+              userProf = list[0] || { id: 'guest_' + Math.random().toString(36).substring(2, 6), name: 'Ospite', avatar: '' };
+            }
+            if (typeof WatchParty !== 'undefined') {
+              showToast(`Connessione alla stanza ${targetRoom}...`);
+              await WatchParty.connect();
+              await WatchParty.joinRoom(targetRoom, userProf);
+              window.history.replaceState({}, document.title, window.location.pathname);
+            }
+          }, 1200);
+        }
+      }
+      initUrlRoomHandler();
 
       if (document.getElementById('wp-invite-cancel')) document.getElementById('wp-invite-cancel').onclick = closeWatchPartyInvite;
       if (document.getElementById('wp-episodes-cancel')) document.getElementById('wp-episodes-cancel').onclick = closeWatchPartyInvite;
@@ -12850,7 +13143,7 @@
             <div class="card-extra">
               <div class="card-extra-content">
                 <div class="card-extra-header">
-                  <h3 class="card-extra-title" title="${cleanName}">${cleanName}</h3>
+                  <h3 class="card-extra-title" title="${cleanName}">${rankNumber ? rankNumber + '. ' : ''}${cleanName}</h3>
                   <div class="card-extra-meta">
                     <span class="card-extra-badge">${badgeType}</span>
                     ${year ? `<span class="card-extra-year card__meta-year">${year}</span>` : ''}

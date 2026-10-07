@@ -24,6 +24,7 @@ wheels/
 .DS_Store
 .AppleDouble
 .LSOverride
+node_modules/
 
 # Large binaries & packages
 *.dmg
