@@ -1,0 +1,46 @@
+<!doctype html><meta charset="utf-8"><title>Verifica WatchParty</title>
+<style>body{font:16px system-ui;background:#151515;color:#fff;padding:30px}video{width:250px;height:60px}pre{white-space:pre-wrap}button{padding:12px}</style>
+<h1>Verifica WatchParty con due player reali</h1>
+<p>Guest con caricamento ritardato; riproduzione, pausa, salto in pausa e ripresa.</p>
+<button id="start">Avvia verifica</button><div><video id="host" muted playsinline></video><video id="guest" muted playsinline></video></div>
+<pre id="result">Pronto</pre><script src="/watchparty-sync.js"></script><script>
+const host=document.querySelector('#host'), guest=document.querySelector('#guest'), result=document.querySelector('#result');
+let hub={last_action:'',last_sync:0}, logs=[], errors=[], commands=0, unexpectedSeeks=0, stage='startup', started=0;
+const delay=ms=>new Promise(r=>setTimeout(r,ms));
+const send=async payload=>{const msg=JSON.parse(payload.action.slice(4));if(msg.kind!=='clock') logs.push('send '+JSON.stringify(msg));await delay(70);hub={last_action:payload.action,last_sync:Date.now()};};
+const media=()=>({key:'fixture',item:{id:'fixture'},url:'/tone.wav'});
+function report(){ result.textContent=JSON.stringify({stage,commands,unexpectedSeeks,hostTime:host.currentTime,guestTime:guest.currentTime,hostPaused:host.paused,guestPaused:guest.paused,errors,logs},null,2); }
+const h=new WatchPartySync({role:'host',video:host,send,media,wait(){},error:e=>errors.push(String(e))});
+const request=h.request.bind(h); h.request=(...args)=>{commands++;request(...args);};
+const g=new WatchPartySync({role:'guest',video:guest,send,wait(){},error:e=>errors.push(String(e)),load:async(_media,time)=>{
+  g.loading=true; await delay(1500); guest.src='/tone.wav';
+  guest.addEventListener('loadeddata',()=>{g.loading=false;g.positionGuest();},{once:true});guest.load();
+}});
+for(const [v,s] of [[host,h],[guest,g]]) for(const ev of ['play','playing','pause','waiting','canplay','seeked']) v.addEventListener(ev,()=>{
+  if(ev==='seeked' && stage==='steady') unexpectedSeeks++;
+  logs.push((v===host?'host':'guest')+' '+ev+' t='+v.currentTime.toFixed(2)+' ready='+v.readyState+' seeking='+v.seeking);
+  s.event(ev);
+});
+let busy=false;
+const poll=setInterval(async()=>{if(busy||!started)return;busy=true;const snapshot={...hub};await delay(60);await h.receive(snapshot);await g.receive(snapshot);h.tick();g.tick();busy=false;},100);
+async function until(predicate,timeout=7000){const end=Date.now()+timeout;while(!predicate()){if(Date.now()>end)throw Error('Timeout: '+stage);await delay(50);}}
+document.querySelector('#start').onclick=async()=>{
+ document.querySelector('#start').disabled=true;started=Date.now();
+ try {
+  h.loading=true;host.src='/tone.wav';host.load();await until(()=>host.readyState>=3);host.currentTime=2;await until(()=>!host.seeking);h.loading=false;
+  h.request(false,2,media());await delay(500);if(!host.paused)throw Error('Host partito prima del guest');
+  await until(()=>!host.paused&&!guest.paused&&!h.pending);await delay(500);
+  stage='steady';const initialCommands=commands;await delay(6000);logs.push('6 secondi di playback continuo');
+  if(commands!==initialCommands||unexpectedSeeks!==0)throw Error('Loop durante playback');
+  stage='pause';h.request(true,host.currentTime,media());await until(()=>!h.pending&&host.paused&&guest.paused);
+  stage='paused seek';host.currentTime=15;await until(()=>h.pending);await until(()=>!h.pending&&Math.abs(guest.currentTime-15)<.3);
+  if(!guest.paused)throw Error('Seek in pausa ha avviato il guest');logs.push('Pausa e salto in pausa verificati');
+  stage='resume';h.request(false,host.currentTime,media());await until(()=>!h.pending&&!host.paused&&!guest.paused);await delay(500);
+  stage='steady';const count=commands;await delay(6000);if(commands!==count||unexpectedSeeks!==0)throw Error('Loop dopo ripresa');
+  if(Math.abs(host.currentTime-guest.currentTime)>1)throw Error('Drift superiore a 1 secondo');
+  logs.push('Ripresa stabile verificata');stage='PASS';
+ } catch(e){errors.push(String(e));stage='FAIL';}
+ finally{clearInterval(poll);h.close();g.close();host.pause();guest.pause();report();}
+};
+setInterval(report,500);
+</script>

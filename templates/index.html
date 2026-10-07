@@ -12045,13 +12045,25 @@
 
       function wpItemSnapshot(item) {
         const source = item || currentActiveItem || {};
+        let time = 0;
+        const rawTime = source.currentTime !== undefined ? source.currentTime : source.current_time;
+        if (typeof rawTime === 'number' && Number.isFinite(rawTime) && rawTime >= 0) {
+          time = rawTime;
+        } else if (typeof rawTime === 'string') {
+          const parsed = parseFloat(rawTime);
+          if (Number.isFinite(parsed) && parsed >= 0) time = parsed;
+        }
         return {
           id: source.id, name: source.name || source.title || 'Titolo', title: source.title || source.name || 'Titolo',
           poster: source.poster || source.cover || '', backdrop: source.backdrop || source.cover || '', slug: source.slug || '',
           type: source.type || 'movie', current_watch_url: source.current_watch_url || '',
-          current_episode_id: source.current_episode_id || null, current_episode_number: source.current_episode_number || null,
-          current_season_number: source.current_season_number || null, current_ep_name: source.current_ep_name || '',
-          current_ep_title: source.current_ep_title || ''
+          current_episode_id: source.current_episode_id !== undefined ? source.current_episode_id : null,
+          current_episode_number: source.current_episode_number !== undefined ? source.current_episode_number : null,
+          current_season_number: source.current_season_number !== undefined ? source.current_season_number : null,
+          current_ep_name: source.current_ep_name || '',
+          current_ep_title: source.current_ep_title || '',
+          currentTime: time,
+          current_time: time
         };
       }
 
@@ -12212,11 +12224,33 @@
 
         const copyLinkBtn = document.getElementById('wp-invite-copy-link-btn');
         if (copyLinkBtn) {
-          copyLinkBtn.onclick = () => {
+          copyLinkBtn.onclick = async () => {
+            if (!watchPartySession || watchPartySession.session_id !== window._wpCurrentRoomCode) {
+              try {
+                const modeRadio = document.querySelector('input[name="wp-ctrl-mode"]:checked');
+                const ctrlMode = modeRadio ? modeRadio.value : 'host-only';
+                const data = await wpRequest('/api/watchparty/create', {
+                  method: 'POST', headers: {'Content-Type': 'application/json'},
+                  body: JSON.stringify({
+                    host_profile_id: currentActiveProfile.id,
+                    guest_profile_id: null,
+                    item: watchPartyItem,
+                    session_id: window._wpCurrentRoomCode
+                  })
+                });
+                watchPartySession = data.session || { session_id: window._wpCurrentRoomCode, item: watchPartyItem, status: 'waiting' };
+                watchPartySession.session_id = data.session_id || window._wpCurrentRoomCode;
+                watchPartyRole = 'host';
+                watchPartyPlaybackStarted = false;
+                startWatchPartyStatePolling();
+              } catch(e) {
+                console.warn('[WatchParty] Room pre-create warning:', e);
+              }
+            }
             const link = `${window.location.origin}/?room=${encodeURIComponent(window._wpCurrentRoomCode)}`;
             if (navigator.clipboard && navigator.clipboard.writeText) {
               navigator.clipboard.writeText(link).then(() => {
-                showToast('Link stanza copiato negli appunti!');
+                showToast('Link stanza creato e copiato negli appunti!');
               }).catch(() => {
                 prompt('Copia questo link stanza:', link);
               });
@@ -12368,26 +12402,30 @@
             body: JSON.stringify({
               host_profile_id: currentActiveProfile.id,
               guest_profile_id: guest ? guest.id : null,
+              guest_name: guest ? guest.name : undefined,
+              guest_avatar: guest ? guest.avatar : undefined,
               item: watchPartyItem,
               session_id: roomCode
             })
           });
           closeWatchPartyInvite();
-          watchPartySession = data.session || { session_id: roomCode, item: watchPartyItem, status: 'waiting' };
+          watchPartySession = data.session || { session_id: data.session_id || roomCode, item: watchPartyItem, status: 'waiting' };
           watchPartySession.session_id = data.session_id || roomCode;
           watchPartyRole = 'host';
           watchPartyPlaybackStarted = false;
 
-          // Inizializza Socket.IO
+          // Inizializza Socket.IO (non bloccante)
           if (typeof WatchParty !== 'undefined') {
-            WatchParty.bindVideo(webVideo);
-            await WatchParty.createRoom({
-              roomId: watchPartySession.session_id,
-              profile: currentActiveProfile,
-              item: watchPartyItem,
-              streamUrl: currentPartyStreamUrl,
-              controlMode: ctrlMode
-            });
+            try {
+              WatchParty.bindVideo(webVideo);
+              WatchParty.createRoom({
+                roomId: watchPartySession.session_id,
+                profile: currentActiveProfile,
+                item: watchPartyItem,
+                streamUrl: currentPartyStreamUrl,
+                controlMode: ctrlMode
+              }).catch(() => {});
+            } catch(e) {}
           }
 
           if (guest) showToast(`Invito inviato a ${guest.name} (Stanza: ${watchPartySession.session_id})`);
@@ -12429,7 +12467,16 @@
         const session = watchPartyPendingSession;
         if (!session) return;
         try {
-          const data = await wpRequest('/api/watchparty/accept', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({session_id: session.session_id}) });
+          const data = await wpRequest('/api/watchparty/accept', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              session_id: session.session_id,
+              guest_profile_id: currentActiveProfile?.id,
+              guest_name: currentActiveProfile?.name,
+              guest_avatar: currentActiveProfile?.avatar
+            })
+          });
           if (wpNotification) wpNotification.classList.remove('visible');
           watchPartyPendingSession = null;
           activateWatchParty(data.session, 'guest');
@@ -12438,10 +12485,14 @@
           // (evita schermo nero da estrazione fallita); fallback dopo 8s.
           wpGuestWaitSince = Date.now();
 
+          // Inizializza Socket.IO (non bloccante)
           if (typeof WatchParty !== 'undefined') {
-            WatchParty.bindVideo(webVideo);
-            await WatchParty.connect();
-            await WatchParty.joinRoom(data.session.session_id, currentActiveProfile);
+            try {
+              WatchParty.bindVideo(webVideo);
+              WatchParty.connect().then(() => {
+                WatchParty.joinRoom(data.session.session_id, currentActiveProfile);
+              }).catch(() => {});
+            } catch(e) {}
           }
           showToast('Connessione al WatchParty...');
         } catch (err) { showToast(err.message); }
@@ -12657,6 +12708,14 @@
         const currentTime = Number(webVideo.currentTime) || 0;
         const isPaused = webVideo.paused;
 
+        // Try Socket.IO if connected
+        if (typeof WatchParty !== 'undefined' && WatchParty.connected && WatchParty.canControl()) {
+          try {
+            if (action !== 'sync') WatchParty.sendAction(action, currentTime);
+            else WatchParty.sendSync(force);
+          } catch(e) {}
+        }
+
         // Check if episode changed — send as separate event
         const epKey = `${currentActiveItem?.id || ''}::${currentActiveItem?.current_episode_id || ''}`;
         if (epKey !== watchPartyLastEpKey) {
@@ -12841,20 +12900,59 @@
         const urlParams = new URLSearchParams(window.location.search);
         const urlRoom = urlParams.get('room') || urlParams.get('wp');
         if (urlRoom && urlRoom.trim()) {
-          const targetRoom = urlRoom.trim().toUpperCase();
+          const targetRoom = urlRoom.trim();
           console.log('[WatchParty] Accesso tramite link stanza:', targetRoom);
           setTimeout(async () => {
             let userProf = currentActiveProfile;
             if (!userProf) {
               const list = availableProfiles || [];
               userProf = list[0] || { id: 'guest_' + Math.random().toString(36).substring(2, 6), name: 'Ospite', avatar: '' };
+              currentActiveProfile = userProf;
             }
+            showToast(`Connessione alla stanza ${targetRoom}...`);
+
+            try {
+              // 1. Unisciti via HTTP
+              const stateData = await wpRequest(`/api/watchparty/state?session_id=${encodeURIComponent(targetRoom)}`);
+              if (stateData && stateData.session) {
+                const session = stateData.session;
+                try {
+                  const acceptData = await wpRequest('/api/watchparty/accept', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                      session_id: targetRoom,
+                      guest_profile_id: userProf.id,
+                      guest_name: userProf.name,
+                      guest_avatar: userProf.avatar
+                    })
+                  });
+                  if (acceptData && acceptData.session) Object.assign(session, acceptData.session);
+                } catch(e) {}
+
+                activateWatchParty(session, 'guest');
+                currentActiveItem = session.item;
+                wpGuestWaitSince = Date.now();
+                if (session.stream_url) {
+                  guestFollowHostMedia(session);
+                }
+                showToast('Sei entrato nel WatchParty!');
+              }
+            } catch (err) {
+              console.warn('[WatchParty] Join via HTTP fallback:', err);
+            }
+
+            // 2. Prova Socket.IO se disponibile in parallelo
             if (typeof WatchParty !== 'undefined') {
-              showToast(`Connessione alla stanza ${targetRoom}...`);
-              await WatchParty.connect();
-              await WatchParty.joinRoom(targetRoom, userProf);
-              window.history.replaceState({}, document.title, window.location.pathname);
+              try {
+                WatchParty.bindVideo(webVideo);
+                WatchParty.connect().then(() => {
+                  WatchParty.joinRoom(targetRoom, userProf);
+                }).catch(() => {});
+              } catch(e) {}
             }
+
+            window.history.replaceState({}, document.title, window.location.pathname);
           }, 1200);
         }
       }
@@ -17613,22 +17711,36 @@ showFilteredGridView(`Risultati per: "${q}"`, '0 Titoli');
 
         let hasResumed = false;
         const doResume = () => {
-          if (!hasResumed && resumeTime > 0 && webVideo) {
-            hasResumed = true;
+          if (typeof playerLoadRevision !== 'undefined' && typeof loadRevision !== 'undefined' && playerLoadRevision !== loadRevision) return;
+          if (hasResumed) return;
+          if (webVideo && webVideo.readyState < 1) {
+            webVideo.addEventListener('loadedmetadata', () => doResume(), { once: true });
+            return;
+          }
+          hasResumed = true;
+          if (resumeTime > 0 && webVideo) {
             try {
               webVideo.currentTime = resumeTime;
-              showToast(`Ripresa da ${formatTime(resumeTime)}`);
+              if (typeof showToast === 'function' && typeof formatTime === 'function') {
+                showToast(`Ripresa da ${formatTime(resumeTime)}`);
+              }
             } catch(e) {
               console.warn("Resume seek error:", e);
             }
           }
+          if (typeof wpConfirmedSync !== 'undefined' && wpConfirmedSync && watchPartyRole === 'host') {
+            try {
+              wpConfirmedSync.request(false, resumeTime, typeof wpCurrentMedia === 'function' ? wpCurrentMedia() : null);
+            } catch(e) {}
+          }
         };
 
         const onReady = () => {
+          if (typeof playerLoadRevision !== 'undefined' && typeof loadRevision !== 'undefined' && playerLoadRevision !== loadRevision) return;
           hidePlayerLoader();
           doResume();
           autoEnterMobileLandscape();
-          if (webVideo) {
+          if (webVideo && typeof webVideo.play === 'function') {
             webVideo.play().then(() => {
               updatePlayPauseUI(true);
               const bigPlay = document.getElementById('player-big-play-btn');
@@ -18229,76 +18341,114 @@ if (currentActiveItem && webVideo && webVideo.currentTime > 2) {
         }
       }
 
+      let nextEpisodeStarting = false;
       async function triggerNextEpisode() {
         if (typeof isWatchPartyGuest === 'function' && isWatchPartyGuest()) return;
-        if (!currentActiveItem) return;
-        hideNextEpisodePopup(true);
-        isNextEpPopupDismissed = false;
-
-        const cleanTitleId = String(currentActiveItem.series_id || currentActiveItem.titleId || currentActiveItem.id || '').split('_')[0];
-
-        if (currentNextEpisode) {
-          // Verify that currentNextEpisode belongs to this series
-          if (currentNextEpisode.title_id && currentNextEpisode.title_id !== cleanTitleId) {
-            console.warn("Mismatched next episode titleId, recalculating for", cleanTitleId);
-            currentNextEpisode = null;
-          } else {
-            const nextEp = currentNextEpisode;
-            const cleanEpName = decodeHtml(nextEp.name || `Episodio ${nextEp.number}`);
-            showToast(`Passaggio a Episodio ${nextEp.number}: ${cleanEpName}`);
-
-            if (webVideo && webVideo.currentTime > 2) {
-              saveContinueWatching(currentActiveItem, webVideo.currentTime, webVideo.duration, true);
-            }
-
-            currentActiveItem.type = 'tv';
-            currentActiveItem.id = cleanTitleId;
-            currentActiveItem.series_id = cleanTitleId;
-            currentActiveItem.current_watch_url = nextEp.watch_url;
-            currentActiveItem.current_episode_id = nextEp.id;
-            currentActiveItem.current_episode_number = nextEp.number;
-            currentActiveItem.current_season_number = nextEp.season_number;
-            currentActiveItem.current_ep_name = cleanEpName;
-            currentActiveItem.currentTime = 0;
-            currentActiveItem.current_ep_title = `Episodio ${nextEp.number} - ${cleanEpName}`;
-
-            playDirectly(currentActiveItem, 0);
-            return;
-          }
-        }
-
-        // Fallback calculation on the fly
-        showToast("Caricamento episodio successivo...");
-        const target = currentActiveItem;
-        const curSeason = Number(target.current_season_number) || 1;
-        const curEpNum = Number(target.current_episode_number) || 1;
-
+        if (!currentActiveItem || nextEpisodeStarting) return;
+        nextEpisodeStarting = true;
         try {
-          const res = await fetch(`/api/sc/season/${cleanTitleId}/${curSeason}?slug=${encodeURIComponent(target.slug || '')}`);
-          const data = await res.json();
-          if (data.success && Array.isArray(data.episodes)) {
-            const next = data.episodes.find(e => Number(e.number) === curEpNum + 1);
-            if (next) {
-              currentNextEpisode = { ...next, season_number: curSeason, title_id: cleanTitleId };
-              triggerNextEpisode();
-              return;
+          hideNextEpisodePopup(true);
+          isNextEpPopupDismissed = false;
+
+          const cleanTitleId = String(currentActiveItem.series_id || currentActiveItem.titleId || currentActiveItem.id || '').split('_')[0];
+
+          if (currentNextEpisode) {
+            // Verify that currentNextEpisode belongs to this series
+            if (currentNextEpisode.title_id && String(currentNextEpisode.title_id) !== cleanTitleId) {
+              console.warn("Mismatched next episode titleId, recalculating for", cleanTitleId);
+              currentNextEpisode = null;
             } else {
-              // Try next season episode 1
-              const nextSeasonNum = curSeason + 1;
-              const res2 = await fetch(`/api/sc/season/${cleanTitleId}/${nextSeasonNum}?slug=${encodeURIComponent(target.slug || '')}`);
+              const nextEp = currentNextEpisode;
+              const cleanEpName = decodeHtml(nextEp.name || `Episodio ${nextEp.number}`);
+              showToast(`Passaggio a Episodio ${nextEp.number}: ${cleanEpName}`);
+
+              if (typeof saveContinueWatching === 'function' && currentActiveItem) {
+                saveContinueWatching(currentActiveItem, webVideo ? webVideo.currentTime : 0, webVideo ? webVideo.duration : 0, true);
+              }
+              if (webVideo && typeof webVideo.pause === 'function') {
+                webVideo.pause();
+              }
+
+              const nextItem = {
+                ...currentActiveItem,
+                type: 'tv',
+                id: cleanTitleId,
+                series_id: cleanTitleId,
+                current_watch_url: nextEp.watch_url,
+                current_episode_id: nextEp.id,
+                current_episode_number: nextEp.number,
+                current_season_number: nextEp.season_number,
+                current_ep_name: cleanEpName,
+                currentTime: 0,
+                current_ep_title: `Episodio ${nextEp.number} - ${cleanEpName}`
+              };
+
+              currentActiveItem = nextItem;
+              await playDirectly(nextItem, 0);
+              return;
+            }
+          }
+
+          // Fallback calculation on the fly
+          showToast("Caricamento episodio successivo...");
+          const target = currentActiveItem;
+          const curSeason = Number(target.current_season_number) || 1;
+          const curEpNum = Number(target.current_episode_number) || 1;
+
+          try {
+            const res = await fetch(`/api/sc/season/${cleanTitleId}/${curSeason}?slug=${encodeURIComponent(target.slug || '')}`);
+            const data = await res.json();
+            let next = null;
+            let targetSeason = curSeason;
+            if (data.success && Array.isArray(data.episodes)) {
+              next = data.episodes.find(e => Number(e.number) === curEpNum + 1);
+            }
+            if (!next) {
+              targetSeason = curSeason + 1;
+              const res2 = await fetch(`/api/sc/season/${cleanTitleId}/${targetSeason}?slug=${encodeURIComponent(target.slug || '')}`);
               const data2 = await res2.json();
               if (data2.success && Array.isArray(data2.episodes) && data2.episodes.length > 0) {
-                currentNextEpisode = { ...data2.episodes[0], season_number: nextSeasonNum, title_id: cleanTitleId };
-                triggerNextEpisode();
-                return;
+                next = data2.episodes[0];
               }
             }
-          }
-        } catch(err) {
-          console.warn("Error resolving next episode:", err);
-        }
 
-        showToast("Nessun episodio successivo disponibile.");
+            if (next) {
+              const cleanEpName = decodeHtml(next.name || `Episodio ${next.number}`);
+              showToast(`Passaggio a Stagione ${targetSeason} - Episodio ${next.number}: ${cleanEpName}`);
+
+              if (typeof saveContinueWatching === 'function' && currentActiveItem) {
+                saveContinueWatching(currentActiveItem, webVideo ? webVideo.currentTime : 0, webVideo ? webVideo.duration : 0, true);
+              }
+              if (webVideo && typeof webVideo.pause === 'function') {
+                webVideo.pause();
+              }
+
+              const nextItem = {
+                ...currentActiveItem,
+                type: 'tv',
+                id: cleanTitleId,
+                series_id: cleanTitleId,
+                current_watch_url: next.watch_url,
+                current_episode_id: next.id,
+                current_episode_number: next.number,
+                current_season_number: targetSeason,
+                current_ep_name: cleanEpName,
+                currentTime: 0,
+                current_ep_title: `Episodio ${next.number} - ${cleanEpName}`
+              };
+
+              currentActiveItem = nextItem;
+              await playDirectly(nextItem, 0);
+              return;
+            }
+          } catch(err) {
+            console.warn("Error resolving next episode:", err);
+          }
+
+          showToast("Nessun episodio successivo disponibile.");
+        } finally {
+          nextEpisodeStarting = false;
+        }
       }
 
       async function updateNextEpisodeButton(target) {

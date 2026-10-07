@@ -3406,23 +3406,26 @@ def watchparty_create():
     guest_profile_id = req.get("guest_profile_id")
     item = req.get("item")
 
-    if not host_profile_id or not guest_profile_id or not item:
+    if not host_profile_id or not item:
         return jsonify({"success": False, "error": "Parametri mancanti"}), 400
 
     profiles_data = load_profiles_data()
     host_prof = get_profile_by_id(profiles_data, host_profile_id)
-    guest_prof = get_profile_by_id(profiles_data, guest_profile_id)
-    if not host_prof or not guest_prof:
-        return jsonify({"success": False, "error": "Profilo non trovato"}), 404
+    if not host_prof:
+        return jsonify({"success": False, "error": "Profilo host non trovato"}), 404
 
-    session_id = f"wp_{int(_time.time())}_{_uuid.uuid4().hex[:8]}"
+    guest_prof = get_profile_by_id(profiles_data, guest_profile_id) if guest_profile_id else None
+    guest_name = req.get("guest_name") or (guest_prof.get("name") if guest_prof else "Ospite")
+    guest_avatar = req.get("guest_avatar") or (guest_prof.get("avatar") if guest_prof else "")
+
+    session_id = (req.get("session_id") and str(req.get("session_id")).strip()) or f"wp_{int(_time.time())}_{_uuid.uuid4().hex[:8]}"
 
     with WATCHPARTY_LOCK:
         data = cleanup_old_sessions(load_watchparty_data())
 
         # A profile can host only one live party at a time.
         for s in data["sessions"]:
-            if s.get("host_profile_id") == host_profile_id and s.get("status") in ("waiting", "active"):
+            if s.get("session_id") != session_id and s.get("host_profile_id") == host_profile_id and s.get("status") in ("waiting", "active"):
                 s["status"] = "ended"
 
         initial_time = 0.0
@@ -3431,14 +3434,16 @@ def watchparty_create():
         except Exception:
             initial_time = 0.0
 
+        data["sessions"] = [s for s in data["sessions"] if s.get("session_id") != session_id]
+
         session = {
             "session_id": session_id,
             "host_profile_id": host_profile_id,
             "host_name": host_prof.get("name", "Host"),
             "host_avatar": host_prof.get("avatar", ""),
-            "guest_profile_id": guest_profile_id,
-            "guest_name": guest_prof.get("name", "Guest"),
-            "guest_avatar": guest_prof.get("avatar", ""),
+            "guest_profile_id": guest_profile_id or None,
+            "guest_name": guest_name,
+            "guest_avatar": guest_avatar,
             "item": item,
             "status": "waiting",
             "current_time": initial_time,
@@ -3452,6 +3457,9 @@ def watchparty_create():
 
         data["sessions"].append(session)
         save_watchparty_data(data)
+
+    # Also proxy to Render Hub so both nodes know about the session
+    proxy_to_render_wp("create", method="POST", json_data=req)
 
     return jsonify({"success": True, "session_id": session_id, "session": session})
 
@@ -3504,19 +3512,29 @@ def watchparty_pending():
 def watchparty_accept():
     req = request.get_json(silent=True) or {}
     session_id = req.get("session_id")
+    guest_profile_id = req.get("guest_profile_id")
+    guest_name = req.get("guest_name")
+    guest_avatar = req.get("guest_avatar")
     if not session_id:
         return jsonify({"success": False, "error": "session_id mancante"}), 400
 
     with WATCHPARTY_LOCK:
         data = load_watchparty_data()
         for s in data.get("sessions", []):
-            if s.get("session_id") == session_id and s.get("status") == "waiting":
+            if s.get("session_id") == session_id and s.get("status") in ("waiting", "active"):
                 s["status"] = "active"
+                if guest_profile_id:
+                    s["guest_profile_id"] = guest_profile_id
+                if guest_name:
+                    s["guest_name"] = guest_name
+                if guest_avatar:
+                    s["guest_avatar"] = guest_avatar
                 s["last_sync"] = int(time.time() * 1000)
                 save_watchparty_data(data)
+                proxy_to_render_wp("accept", method="POST", json_data=req)
                 return jsonify({"success": True, "session": s})
 
-    remote = proxy_to_render_wp("accept", method="POST", json_data={"session_id": session_id})
+    remote = proxy_to_render_wp("accept", method="POST", json_data=req)
     if remote and remote.get("success"):
         return jsonify(remote)
 
@@ -3570,11 +3588,12 @@ def watchparty_sync():
                                "backdrop", "cover", "current_watch_url",
                                "current_episode_id", "current_episode_number",
                                "current_season_number", "current_ep_name",
-                               "current_ep_title")
+                               "current_ep_title", "currentTime", "current_time")
                     s["item"] = {k: req["item"].get(k) for k in allowed}
                 s["last_action"] = req.get("action", req.get("last_action", "sync"))
                 s["last_sync"] = int(_time.time() * 1000)
                 save_watchparty_data(data)
+                proxy_to_render_wp("sync", method="POST", json_data=req)
                 return jsonify({"success": True, "session": s})
 
     remote = proxy_to_render_wp("sync", method="POST", json_data=req)

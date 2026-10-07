@@ -155,9 +155,9 @@
 
           this.socket = window.io(hubUrl, {
             transports: ['websocket', 'polling'],
-            timeout: 8000,
-            reconnectionAttempts: 5,
-            reconnectionDelay: 1500
+            timeout: 1500,
+            reconnectionAttempts: 1,
+            reconnectionDelay: 1000
           });
 
           this.socket.on('connect', () => {
@@ -170,9 +170,9 @@
             console.warn('[WatchParty] Errore connessione Hub:', err.message);
             // Se fallisce il server locale, prova Render Hub se non era già selezionato
             if (hubUrl !== RENDER_HUB_DEFAULT && !hubUrl.includes('onrender.com')) {
-              console.log('[WatchParty] Tentativo fallback su Render Hub Cloud...');
+              console.log('[WatchParty] Tentativo fallback rapido su Render Hub Cloud...');
               this.socket.disconnect();
-              this.connect(RENDER_HUB_DEFAULT).then(resolve).catch(reject);
+              this.connect(RENDER_HUB_DEFAULT).then(resolve).catch(() => resolve(false));
             } else {
               resolve(false);
             }
