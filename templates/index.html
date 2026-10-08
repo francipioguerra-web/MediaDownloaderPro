@@ -10048,12 +10048,10 @@
       }
     }
 
-    /* WatchParty guest: solo l'host ha i comandi */
-    #player-modal.wp-guest-lock #btn-player-toggle-play,
+    /* WatchParty guest: solo l'host ha i comandi di seek/impostazioni */
     #player-modal.wp-guest-lock #btn-player-rewind,
     #player-modal.wp-guest-lock #btn-player-forward,
-    #player-modal.wp-guest-lock #btn-player-settings,
-    #player-modal.wp-guest-lock #player-big-play-btn {
+    #player-modal.wp-guest-lock #btn-player-settings {
       display: none !important;
     }
     #player-modal.wp-guest-lock #player-scrubber-container {
@@ -12405,14 +12403,18 @@
               guest_name: guest ? guest.name : undefined,
               guest_avatar: guest ? guest.avatar : undefined,
               item: watchPartyItem,
-              session_id: roomCode
+              session_id: roomCode,
+              stream_url: currentPartyStreamUrl || undefined
             })
           });
           closeWatchPartyInvite();
           watchPartySession = data.session || { session_id: data.session_id || roomCode, item: watchPartyItem, status: 'waiting' };
           watchPartySession.session_id = data.session_id || roomCode;
           watchPartyRole = 'host';
-          watchPartyPlaybackStarted = false;
+
+          // Mostra subito il banner WatchParty e avvia il monitoraggio sessione per l'host
+          activateWatchParty(watchPartySession, 'host');
+          watchPartyPlaybackStarted = true;
 
           // Inizializza Socket.IO (non bloccante)
           if (typeof WatchParty !== 'undefined') {
@@ -12431,7 +12433,16 @@
           if (guest) showToast(`Invito inviato a ${guest.name} (Stanza: ${watchPartySession.session_id})`);
           else showToast(`Stanza WatchParty creata: ${watchPartySession.session_id}`);
 
-          startWatchPartyStatePolling();
+          // L'host apre SUBITO il player ed estrae il video senza attendere l'ospite
+          const isAlreadyPlayingSame = playerModal && !playerModal.classList.contains('hidden') && webVideo && currentActiveItem && String(currentActiveItem.id) === String(watchPartyItem.id);
+          if (!isAlreadyPlayingSame) {
+            const initialTime = Number(watchPartyItem?.currentTime) || Number(watchPartyItem?.current_time) || 0;
+            playDirectly(watchPartyItem, initialTime).catch(err => console.warn('[WatchParty] Host playback start warning:', err));
+          } else {
+            if (currentPartyStreamUrl) {
+              sendWatchPartyState('sync', true);
+            }
+          }
         } catch (err) { showToast(err.message); }
       }
 
@@ -12479,22 +12490,26 @@
           });
           if (wpNotification) wpNotification.classList.remove('visible');
           watchPartyPendingSession = null;
-          activateWatchParty(data.session, 'guest');
-          currentActiveItem = data.session.item;
-          // Il guest NON avvia subito: attende l'URL condiviso dall'host
-          // (evita schermo nero da estrazione fallita); fallback dopo 8s.
+          const activeSession = (data && data.session) ? data.session : session;
+          activateWatchParty(activeSession, 'guest');
+          currentActiveItem = activeSession.item;
           wpGuestWaitSince = Date.now();
+          showToast('Connessione al WatchParty...');
+
+          // Se l'host ha già condiviso il flusso video, avvialo immediatamente!
+          if (activeSession.stream_url) {
+            guestFollowHostMedia(activeSession);
+          }
 
           // Inizializza Socket.IO (non bloccante)
           if (typeof WatchParty !== 'undefined') {
             try {
               WatchParty.bindVideo(webVideo);
               WatchParty.connect().then(() => {
-                WatchParty.joinRoom(data.session.session_id, currentActiveProfile);
+                WatchParty.joinRoom(activeSession.session_id, currentActiveProfile);
               }).catch(() => {});
             } catch(e) {}
           }
-          showToast('Connessione al WatchParty...');
         } catch (err) { showToast(err.message); }
       }
 
@@ -12678,13 +12693,17 @@
             await playDirectly(session.item, Number(session.current_time) || 0);
           } else if (watchPartyRole === 'guest' && session.status === 'active') {
             if (!wpGuestStarted) {
-              // Primo avvio: preferisci il flusso condiviso dall'host;
-              // se tarda troppo, procedi con estrazione propria.
-              if (session.stream_url || (wpGuestWaitSince && Date.now() - wpGuestWaitSince > 8000)) {
+              if (session.stream_url) {
+                guestFollowHostMedia(session);
+              } else if (wpGuestWaitSince && Date.now() - wpGuestWaitSince > 8000) {
                 guestFollowHostMedia(session);
               }
             } else {
-              applyWatchPartyState(session);
+              if (session.stream_url && (!pendingExtraction || !pendingExtraction.m3u8 || pendingExtraction.m3u8 !== session.stream_url)) {
+                guestFollowHostMedia(session);
+              } else {
+                applyWatchPartyState(session);
+              }
             }
           }
         } catch(e) {}
@@ -12700,7 +12719,7 @@
       }
 
       async function sendWatchPartyState(action = 'sync', force = false) {
-        if (!watchPartySession || watchPartyRole !== 'host' || !webVideo || watchPartySession.status !== 'active') return;
+        if (!watchPartySession || watchPartyRole !== 'host' || !webVideo || (watchPartySession.status !== 'active' && watchPartySession.status !== 'waiting')) return;
         const now = Date.now();
         if (!force && now - watchPartyLastSentAt < 800) return;
         watchPartyLastSentAt = now;
@@ -12787,29 +12806,21 @@
       function guestFollowHostMedia(session) {
         const item = session.item || {};
         const key = wpMediaKey(item);
+        const url = session.stream_url || '';
         const nowTs = Date.now();
-        // Guardia anti-loop: mai riavviare lo stesso media a <10s dall'ultimo avvio.
-        if (key && key === wpGuestMediaKey && nowTs - wpGuestLastFollowAt < 10000) return;
+        // Guardia anti-loop: mai riavviare se abbiamo già in riproduzione lo stesso URL per lo stesso media a <6s
+        if (key && key === wpGuestMediaKey && url && pendingExtraction && pendingExtraction.m3u8 === url && nowTs - wpGuestLastFollowAt < 6000) return;
         wpGuestLastFollowAt = nowTs;
         currentActiveItem = item;
         const t = Number(session.current_time) || 0;
-        const url = session.stream_url || '';
         wpGuestMediaKey = key;
         wpGuestStarted = true;
         wpGuestLastTime = -1;
         wpGuestStallPolls = 0;
         if (url) {
           pendingExtraction = { m3u8: url, embed: item.current_watch_url || '', title: item.name || item.title || '' };
-          // Stessa splash di avvio del flusso normale.
           try {
-            const gTitle = decodeHtml(item.name || item.title || 'In riproduzione');
-            let gSub = '';
-            if (item.current_episode_id || item.current_episode_number) {
-              gSub = `Episodio ${item.current_episode_number || ''} - ${decodeHtml(item.current_ep_name || '')}`.trim();
-            } else if (item.type === 'tv' || item.type === 'series') {
-              gSub = 'Serie TV';
-            }
-            triggerNetflixIntroTransition(gTitle, gSub, item.backdrop || item.poster || item.cover || '', t);
+            hideNetflixIntroImmediate();
           } catch(e) {}
           playInWebPlayer(url, item.name || item.title || '', false, t);
         } else {
@@ -17035,31 +17046,6 @@ showFilteredGridView(`Risultati per: "${q}"`, '0 Titoli');
           checkBufferingFinished = () => {
             if (dismissed) return;
 
-            // 1. Initial media data readiness:
-            // readyState >= 3 means HAVE_FUTURE_DATA (or HAVE_ENOUGH_DATA = 4)
-            // It guarantees enough data has been buffered for playback to proceed
-            if (webVideo.readyState < 3) return;
-
-            // 2. Must not be currently seeking
-            if (webVideo.seeking) return;
-
-            const reqResume = window._transitionTargetResumeTime || 0;
-
-            // 3. For "continua a guardare" (reqResume > 0):
-            // We MUST ensure the seek has landed at the resume position and is NOT at 0s
-            if (reqResume > 0) {
-              const minThreshold = Math.max(0.5, reqResume - 2.5);
-              if (webVideo.currentTime < minThreshold) {
-                return; // Still waiting for seek to apply!
-              }
-            } else {
-              // Starting from start: ensure decoder has processed first frames
-              if (webVideo.currentTime < 0.08) {
-                return;
-              }
-            }
-
-            // 4. Verify playback progress:
             const doSmoothDismiss = () => {
               const elapsed = Date.now() - introStartTime;
               if (elapsed < minDisplayMs) {
@@ -17069,22 +17055,26 @@ showFilteredGridView(`Risultati per: "${q}"`, '0 Titoli');
               }
             };
 
+            const elapsed = Date.now() - introStartTime;
+
+            // 1. Se il video sta riproducendo attivamente
             if (!webVideo.paused) {
-              if (lastCheckTime < 0) {
-                lastCheckTime = webVideo.currentTime;
+              if (webVideo.currentTime > 0.08 || webVideo.readyState >= 3) {
+                doSmoothDismiss();
                 return;
               }
-              if (webVideo.currentTime > lastCheckTime || webVideo.readyState >= 4) {
-                // Buffering is 100% complete and video is playing!
+            } else {
+              // 2. Se il browser ha bloccato l'autoplay (video in pausa) o abbiamo caricato i metadati,
+              // dopo il tempo minimo di intro (1.2s), dissolvi per svelare il player e il pulsante play centrale
+              if (elapsed >= minDisplayMs && (webVideo.readyState >= 1 || elapsed > 2500)) {
                 doSmoothDismiss();
+                return;
               }
-            } else if (webVideo.readyState >= 3 && !webVideo.seeking) {
-              // Video is buffered but paused due to browser autoplay restriction
-              setTimeout(() => {
-                if (!dismissed && webVideo.readyState >= 3 && !webVideo.seeking) {
-                  doSmoothDismiss();
-                }
-              }, 1200);
+            }
+
+            // Fallback di sicurezza: mai bloccare l'interfaccia oltre 4s
+            if (elapsed > 4000) {
+              dismissIntro();
             }
           };
 
@@ -17619,11 +17609,18 @@ showFilteredGridView(`Risultati per: "${q}"`, '0 Titoli');
 
       function togglePlayPause() {
         if (!webVideo) return;
+        if (watchPartyRole === 'guest' && watchPartySession && !webVideo.paused) {
+          showToast('Solo l’host può controllare la riproduzione');
+          return;
+        }
         if (webVideo.paused || webVideo.ended) {
           webVideo.play().then(() => {
             updatePlayPauseUI(true);
             showPlayerFeedback('play');
             wakePlayerControls();
+            if (watchPartyRole === 'guest' && watchPartySession) {
+              applyWatchPartyState(watchPartySession);
+            }
           }).catch(() => {});
         } else {
           webVideo.pause();
@@ -17708,6 +17705,9 @@ showFilteredGridView(`Risultati per: "${q}"`, '0 Titoli');
         if (typeof ScrubberThumbnailPreview !== 'undefined') {
           ScrubberThumbnailPreview.setSource(m3u8Source);
         }
+        if (watchPartyRole === 'host' && watchPartySession && currentPartyStreamUrl) {
+          sendWatchPartyState('sync', true);
+        }
 
         let hasResumed = false;
         const doResume = () => {
@@ -17749,7 +17749,13 @@ showFilteredGridView(`Risultati per: "${q}"`, '0 Titoli');
               console.log("Autoplay requiring interaction:", err);
               updatePlayPauseUI(false);
               const bigPlay = document.getElementById('player-big-play-btn');
-              if (bigPlay) bigPlay.classList.remove('hidden');
+              if (bigPlay) {
+                bigPlay.classList.remove('hidden');
+                bigPlay.style.zIndex = '999999';
+              }
+              if (watchPartyRole === 'guest') {
+                showToast('Tocca lo schermo per avviare il WatchParty in sync');
+              }
             });
           }
           wakePlayerControls();

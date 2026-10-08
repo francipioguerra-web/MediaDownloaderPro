@@ -347,6 +347,7 @@ def watchparty_create():
             "item": item,
             "status": "waiting",
             "current_time": initial_time,
+            "stream_url": str(req.get("stream_url", ""))[:2000] if req.get("stream_url") else None,
             "paused": True,
             "last_action": "create",
             "last_sync": int(time.time() * 1000),
@@ -425,7 +426,7 @@ def watchparty_sync():
     with DATA_LOCK:
         data = read_json(WATCHPARTY_FILE, {"sessions": []})
         for s in data.get("sessions", []):
-            if s.get("session_id") == session_id and s.get("status") == "active":
+            if s.get("session_id") == session_id and s.get("status") in ("waiting", "active"):
                 if "current_time" in req:
                     s["current_time"] = max(0, float(req["current_time"]))
                 if "paused" in req:

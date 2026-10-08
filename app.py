@@ -3447,6 +3447,7 @@ def watchparty_create():
             "item": item,
             "status": "waiting",
             "current_time": initial_time,
+            "stream_url": str(req.get("stream_url", ""))[:2000] if req.get("stream_url") else None,
             "paused": True,
             "guest_ready": False,
             "guest_buffering": False,
@@ -3572,7 +3573,7 @@ def watchparty_sync():
     with WATCHPARTY_LOCK:
         data = load_watchparty_data()
         for s in data.get("sessions", []):
-            if s.get("session_id") == session_id and s.get("status") == "active":
+            if s.get("session_id") == session_id and s.get("status") in ("waiting", "active"):
                 if "current_time" in req:
                     s["current_time"] = max(0, float(req["current_time"]))
                 if "paused" in req:
