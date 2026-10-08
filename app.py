@@ -3459,8 +3459,9 @@ def watchparty_create():
         data["sessions"].append(session)
         save_watchparty_data(data)
 
-    # Also proxy to Render Hub so both nodes know about the session
-    proxy_to_render_wp("create", method="POST", json_data=req)
+    req["session_id"] = session_id
+    # Also proxy to Render Hub asynchronously so both nodes know about the session without blocking
+    proxy_to_render_wp_async("create", method="POST", json_data=req)
 
     return jsonify({"success": True, "session_id": session_id, "session": session})
 
@@ -3480,12 +3481,25 @@ def proxy_to_render_wp(endpoint, method="GET", json_data=None, params=None):
         if req_data:
             headers["Content-Type"] = "application/json"
         req = urllib.request.Request(url, data=req_data, headers=headers, method=method)
-        with urllib.request.urlopen(req, context=ctx, timeout=3.0) as resp:
+        with urllib.request.urlopen(req, context=ctx, timeout=1.5) as resp:
             content = resp.read().decode("utf-8")
             return json.loads(content) if content else {"success": True}
     except Exception as e:
         print("[WatchParty Proxy Error]", e)
         return None
+
+def proxy_to_render_wp_async(endpoint, method="POST", json_data=None, params=None):
+    try:
+        import threading
+        t = threading.Thread(
+            target=proxy_to_render_wp,
+            args=(endpoint,),
+            kwargs={"method": method, "json_data": json_data, "params": params},
+            daemon=True
+        )
+        t.start()
+    except Exception as e:
+        print("[WatchParty Proxy Async Launch Error]", e)
 
 @app.route('/api/watchparty/pending', methods=['GET'])
 def watchparty_pending():
@@ -3499,12 +3513,11 @@ def watchparty_pending():
     pending = [s for s in data.get("sessions", [])
                if s.get("guest_profile_id") == profile_id and s.get("status") == "waiting"]
 
-    # Also query Render Hub so that invitations sent from APK/Phone always reach localhost
-    remote_res = proxy_to_render_wp("pending", method="GET", params={"profile_id": profile_id})
-    if remote_res and isinstance(remote_res.get("sessions"), list):
-        existing_ids = {s.get("session_id") for s in pending}
-        for rs in remote_res["sessions"]:
-            if rs.get("session_id") not in existing_ids:
+    # If nothing found locally, query Render Hub so invitations from external clients reach localhost
+    if not pending:
+        remote_res = proxy_to_render_wp("pending", method="GET", params={"profile_id": profile_id})
+        if remote_res and isinstance(remote_res.get("sessions"), list):
+            for rs in remote_res["sessions"]:
                 pending.append(rs)
 
     return jsonify({"success": True, "sessions": pending})
@@ -3532,7 +3545,7 @@ def watchparty_accept():
                     s["guest_avatar"] = guest_avatar
                 s["last_sync"] = int(time.time() * 1000)
                 save_watchparty_data(data)
-                proxy_to_render_wp("accept", method="POST", json_data=req)
+                proxy_to_render_wp_async("accept", method="POST", json_data=req)
                 return jsonify({"success": True, "session": s})
 
     remote = proxy_to_render_wp("accept", method="POST", json_data=req)
@@ -3554,6 +3567,7 @@ def watchparty_decline():
             if s.get("session_id") == session_id and s.get("status") == "waiting":
                 s["status"] = "declined"
                 save_watchparty_data(data)
+                proxy_to_render_wp_async("decline", method="POST", json_data={"session_id": session_id})
                 return jsonify({"success": True})
 
     remote = proxy_to_render_wp("decline", method="POST", json_data={"session_id": session_id})
@@ -3594,7 +3608,7 @@ def watchparty_sync():
                 s["last_action"] = req.get("action", req.get("last_action", "sync"))
                 s["last_sync"] = int(_time.time() * 1000)
                 save_watchparty_data(data)
-                proxy_to_render_wp("sync", method="POST", json_data=req)
+                proxy_to_render_wp_async("sync", method="POST", json_data=req)
                 return jsonify({"success": True, "session": s})
 
     remote = proxy_to_render_wp("sync", method="POST", json_data=req)
@@ -3633,6 +3647,7 @@ def watchparty_end():
             if s.get("session_id") == session_id:
                 s["status"] = "ended"
                 save_watchparty_data(data)
+                proxy_to_render_wp_async("end", method="POST", json_data={"session_id": session_id})
                 return jsonify({"success": True})
 
     remote = proxy_to_render_wp("end", method="POST", json_data={"session_id": session_id})

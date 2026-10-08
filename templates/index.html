@@ -12070,13 +12070,13 @@
         let savedHub = localStorage.getItem('sc_watchparty_hub_url');
         if (savedHub && savedHub.trim()) {
           const clean = savedHub.trim().replace(/\/+$/, '');
-          if (clean.includes('trycloudflare.com') || clean.includes('loca.lt') || clean.includes('localhost:') || clean.includes('127.0.0.1:')) {
+          if (clean.includes('trycloudflare.com') || clean.includes('loca.lt')) {
             localStorage.removeItem('sc_watchparty_hub_url');
-            return RENDER_DEFAULT_HUB;
+          } else {
+            return clean;
           }
-          return clean;
         }
-        if (window.location.protocol === 'https:' && window.location.hostname.includes('onrender.com')) {
+        if (typeof window !== 'undefined' && window.location && window.location.origin && window.location.protocol !== 'file:') {
           return window.location.origin;
         }
         return RENDER_DEFAULT_HUB;
@@ -12261,7 +12261,13 @@
         const hubInd = document.getElementById('wp-hub-indicator');
         const customHub = localStorage.getItem('sc_watchparty_hub_url');
         if (hubInd) {
-          hubInd.textContent = customHub ? customHub.replace('https://', '') : 'Render Cloud';
+          if (customHub) {
+            hubInd.textContent = customHub.replace(/^https?:\/\//, '');
+          } else if (typeof window !== 'undefined' && window.location && window.location.host) {
+            hubInd.textContent = window.location.host;
+          } else {
+            hubInd.textContent = 'Render Cloud';
+          }
         }
         const editHubBtn = document.getElementById('wp-btn-edit-hub');
         if (editHubBtn) {
@@ -12496,8 +12502,10 @@
           wpGuestWaitSince = Date.now();
           showToast('Connessione al WatchParty...');
 
-          // Se l'host ha già condiviso il flusso video, avvialo immediatamente!
+          // Se l'host ha già condiviso il flusso video o l'item è noto, avvia subito il player per l'ospite
           if (activeSession.stream_url) {
+            guestFollowHostMedia(activeSession);
+          } else if (activeSession.item && (activeSession.item.id || activeSession.item.name || activeSession.item.title)) {
             guestFollowHostMedia(activeSession);
           }
 
@@ -12695,6 +12703,8 @@
             if (!wpGuestStarted) {
               if (session.stream_url) {
                 guestFollowHostMedia(session);
+              } else if (session.item && (session.item.id || session.item.name || session.item.title)) {
+                guestFollowHostMedia(session);
               } else if (wpGuestWaitSince && Date.now() - wpGuestWaitSince > 8000) {
                 guestFollowHostMedia(session);
               }
@@ -12839,7 +12849,7 @@
         if (!wpGuestStarted || webVideo.readyState < 1) return;
 
         const serverTimestamp = Number(session.last_sync) || Date.now();
-        const elapsed = (Date.now() - serverTimestamp) / 1000;
+        const elapsed = Math.max(0, Math.min((Date.now() - serverTimestamp) / 1000, 10));
         const hostTime = Number(session.current_time) || 0;
         const isPlaying = !session.paused;
         const expectedTime = isPlaying ? (hostTime + elapsed) : hostTime;
@@ -12874,7 +12884,17 @@
         }
 
         if (webVideo.paused && webVideo.readyState >= 1) {
-          webVideo.play().catch(() => {});
+          webVideo.play().then(() => {
+            updatePlayPauseUI(true);
+            const bigPlay = document.getElementById('player-big-play-btn');
+            if (bigPlay) bigPlay.classList.add('hidden');
+          }).catch(() => {
+            const bigPlay = document.getElementById('player-big-play-btn');
+            if (bigPlay) {
+              bigPlay.classList.remove('hidden');
+              bigPlay.style.zIndex = '999999';
+            }
+          });
         }
         wpGuestLastTime = webVideo.currentTime || 0;
       }
@@ -12945,6 +12965,8 @@
                 currentActiveItem = session.item;
                 wpGuestWaitSince = Date.now();
                 if (session.stream_url) {
+                  guestFollowHostMedia(session);
+                } else if (session.item && (session.item.id || session.item.name || session.item.title)) {
                   guestFollowHostMedia(session);
                 }
                 showToast('Sei entrato nel WatchParty!');
@@ -17850,6 +17872,7 @@ showFilteredGridView(`Risultati per: "${q}"`, '0 Titoli');
           });
         } else if (webVideo && webVideo.canPlayType('application/vnd.apple.mpegurl')) {
           webVideo.src = m3u8Source;
+          try { webVideo.load(); } catch(e) {}
           webVideo.addEventListener('loadedmetadata', () => {
             onReady();
             if (typeof setupHlsAudioDropdown === 'function') setupHlsAudioDropdown(currentStreamAudioTracks);
@@ -19993,7 +20016,7 @@ if (currentActiveItem && webVideo && webVideo.currentTime > 2) {
           webVideo.onclick = (e) => {
             e.stopPropagation();
             closePlayerDropdowns();
-            if (typeof isWatchPartyGuest === 'function' && isWatchPartyGuest()) return;
+            if (typeof isWatchPartyGuest === 'function' && isWatchPartyGuest() && !webVideo.paused) return;
             togglePlayPause();
           };
         }
