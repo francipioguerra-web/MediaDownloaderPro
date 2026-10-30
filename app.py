@@ -3776,12 +3776,7 @@ if SOCKETIO_AVAILABLE and socketio:
 
 def streamingcommunity_item(item):
     if not isinstance(item, dict): return False
-    if item.get('provider') == 'guardoseries':
-        return bool(re.fullmatch(r'gs-[0-9a-f]+', str(item.get('titleId') or item.get('id') or '')))
-    if item.get('provider') and item['provider'] != 'streamingcommunity': return False
-    if item.get('source') and not str(item['source']).startswith('StreamingCommunity'): return False
-    identifier = str(item.get('series_id') or item.get('titleId') or item.get('id') or '').split('_')[0]
-    return identifier.isdigit()
+    return True
 
 @app.route('/api/history', methods=['GET'])
 def get_history():
