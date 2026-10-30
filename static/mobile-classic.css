@@ -1,0 +1,226 @@
+/* Phone catalog: clean portrait artwork, native scrolling, tap for details. */
+@media (max-width: 768px) {
+body #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card,
+body #home-multi-rows #track-top10 .card,
+body #catalog-grid .card,
+body #archive-grid .card {
+  width: 128px !important; min-width: 0 !important; max-width: none !important;
+  height: auto !important; aspect-ratio: 2 / 3 !important; flex: 0 0 128px !important;
+  padding: 0 !important; margin: 0 !important; transform: none !important;
+  opacity: 1 !important; filter: none !important; z-index: auto !important;
+  border-radius: 10px !important; overflow: hidden !important;
+  scroll-snap-align: start; touch-action: pan-x pan-y !important;
+}
+body #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card .card-corpo,
+body #home-multi-rows #track-top10 .card .card-corpo,
+body #catalog-grid .card .card-corpo,
+body #archive-grid .card .card-corpo {
+  position: relative !important; inset: auto !important; width: 100% !important;
+  height: 100% !important; aspect-ratio: 2 / 3 !important; transform: none !important;
+  border: 0 !important; border-radius: 10px !important; box-shadow: none !important;
+}
+body #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card .card-poster,
+body #home-multi-rows #track-top10 .card .card-poster,
+body #catalog-grid .card .card-poster,
+body #archive-grid .card .card-poster {
+  position: relative !important; inset: auto !important; display: block !important;
+  width: 100% !important; height: 100% !important; flex: 0 0 100% !important;
+  opacity: 1 !important; mask-image: none !important; -webkit-mask-image: none !important;
+  transform: none !important; border-radius: 10px !important;
+}
+body #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card .card-poster img,
+body #home-multi-rows #track-top10 .card .card-poster img,
+body #catalog-grid .card .card-poster img,
+body #archive-grid .card .card-poster img {
+  display: block !important; visibility: visible !important;
+  width: 100% !important; height: 100% !important; object-fit: cover !important;
+  transform: none !important; opacity: 1 !important; filter: none !important; border-radius: 10px !important;
+}
+body #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card :is(.card-extra, .card-bg-layer, .card__info, .card__badge, .card__ribbon, .card__grid-overlay, .card-scrim-horizontal),
+body #home-multi-rows #track-top10 .card :is(.card-extra, .card-bg-layer, .card__info, .card__badge, .card__ribbon, .card__grid-overlay, .card-scrim-horizontal),
+body #catalog-grid .card :is(.card-extra, .card-bg-layer, .card__info, .card__badge, .card__ribbon, .card__grid-overlay, .card-scrim-horizontal),
+body #archive-grid .card :is(.card-extra, .card-bg-layer, .card__info, .card__badge, .card__ribbon, .card__grid-overlay, .card-scrim-horizontal) {
+  display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important;
+}
+body #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .card .card-poster::after,
+body #home-multi-rows #track-top10 .card .card-poster::after,
+body #catalog-grid .card .card-poster::after,
+body #archive-grid .card .card-poster::after {
+  display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important;
+}
+
+  body #home-multi-rows .row:not(#track-continue-watching):not(#track-top10),
+  body #home-multi-rows #track-top10 {
+    display: flex !important; gap: 12px !important;
+    padding: 4px 16px 16px !important; overflow-x: auto !important;
+    scroll-snap-type: x proximity !important; perspective: none !important;
+  }
+  body #home-multi-rows #track-top10 .rank-card__number { display: none !important; }
+  body #catalog-grid, body #archive-grid {
+    display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 14px 10px !important; padding: 16px 14px 100px !important;
+  }
+  body #catalog-grid .card, body #archive-grid .card {
+    width: 100% !important; flex: none !important;
+  }
+  body #prime-hover-portal, body #peek-card-wrap { display: none !important; }
+
+  /* One continuous detail sheet, with a generous artwork header. */
+  body #details-modal {
+    padding: max(12px, env(safe-area-inset-top, 0px)) 0 0 !important;
+    align-items: flex-end !important; box-sizing: border-box;
+    background: transparent !important;
+    backdrop-filter: blur(16px) !important;
+    -webkit-backdrop-filter: blur(16px) !important;
+  }
+  body #details-modal .modal-card,
+  body #details-modal .modal-card.modal-card--movie {
+    height: calc(100dvh - max(12px, env(safe-area-inset-top, 0px))) !important;
+    max-height: calc(100dvh - max(12px, env(safe-area-inset-top, 0px))) !important;
+    border-radius: 20px 20px 0 0 !important; background: #0e0f14 !important;
+    border: 0 !important; padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+  }
+  body #details-modal .modal-card::before { display: none !important; }
+  body #details-modal .modal-card:is(.modal-card--movie, :not(.modal-card--movie)) .details-hero-banner {
+    min-height: 0 !important; height: auto !important; padding: 0 !important;
+    background-size: 100% auto !important; background-position: center top !important;
+    border-radius: 20px 20px 0 0 !important;
+  }
+  body #details-modal .details-hero-overlay,
+  body #details-modal .details-hero-blur-bottom { display: none !important; }
+  body #details-modal .details-hero-content {
+    width: 100% !important; max-width: 100% !important; margin: 0 !important; box-sizing: border-box;
+    transform: none !important; align-self: stretch !important;
+    padding: clamp(200px, 58vw, 340px) 20px 28px !important;
+    background: linear-gradient(to bottom, transparent 0, transparent 25vw, #0e0f14 58vw, #0e0f14 100%);
+  }
+  body #details-modal .details-hero-content::before { display: none !important; }
+  body #details-modal .details-hero-meta-row {
+    gap: 10px !important; margin-bottom: 14px !important; padding-right: 0 !important;
+    font-size: .75rem !important; line-height: 1.5;
+  }
+  body #details-modal .modal-card .details-hero-title {
+    font-size: clamp(1.8rem, 7.5vw, 2.5rem) !important;
+    line-height: 1.12 !important; padding: 0 !important; margin: 0 0 18px !important;
+    letter-spacing: -.03em !important;
+  }
+  body #details-modal .modal-card:is(.modal-card--movie, :not(.modal-card--movie)) .details-hero-plot {
+    display: block !important; -webkit-line-clamp: unset !important;
+    max-height: none !important; overflow: visible !important;
+    font-size: .94rem !important; line-height: 1.65 !important;
+    margin: 0 !important; padding: 0 !important; color: #c8cbd3 !important;
+  }
+  body #details-modal .details-hero-actions {
+    display: flex !important; flex-wrap: wrap !important; gap: 12px !important;
+    margin: 24px 0 0 !important; padding: 0 !important;
+  }
+  body #details-modal .details-hero-actions .btn-modal-action {
+    height: 48px !important; min-width: 48px !important; max-width: none !important;
+    border-radius: 12px !important; justify-content: center !important;
+    background: #20232b !important; padding: 0 14px !important; flex: 1 0 48px;
+  }
+  body #details-modal .details-hero-actions #btn-modal-player-open {
+    flex: 1 0 100%; width: 100% !important; background: #fff !important;
+    color: #101218 !important; border-color: #fff !important; gap: 10px !important;
+  }
+  body #details-modal #btn-modal-player-open .btn-modal-label {
+    opacity: 1 !important; max-width: none !important; margin: 0 !important;
+    color: #101218 !important; font-size: .95rem !important; text-shadow: none !important;
+  }
+  body #details-modal #btn-modal-player-open svg { stroke: #101218 !important; }
+  body #details-modal .details-body-section {
+    padding: 12px 20px 40px !important;
+  }
+  body #details-modal .modal-options-title {
+    font-size: .78rem !important; letter-spacing: .06em !important;
+    margin-bottom: 14px !important; color: #aeb4c0 !important;
+  }
+  body #details-modal .season-dropdown-select { min-height: 52px; border-radius: 12px !important; }
+  body #details-modal .season-select-wrapper + .modal-options-title { margin-top: 32px !important; }
+  body #details-modal .modal-close-btn {
+    top: 14px !important; right: 14px !important; width: 40px !important; height: 40px !important;
+    background: rgba(10,12,18,.8) !important; z-index: 50 !important;
+  }
+  body #details-modal #episodes-container { gap: 16px !important; }
+  body #details-modal #episodes-container .episode-card { border-radius: 12px !important; }
+}
+
+@media (max-width: 768px) {
+  body #home-multi-rows #track-continue-watching .resume-card {
+    width: 128px !important; min-width: 128px !important; max-width: 128px !important;
+    height: 192px !important; padding: 0 !important; border: 0 !important;
+    border-radius: 10px !important; overflow: hidden !important;
+  }
+  body #track-continue-watching .resume-card > div:first-child {
+    width: 100% !important; height: 100% !important; aspect-ratio: 2 / 3 !important;
+  }
+  body #track-continue-watching .resume-card picture,
+  body #track-continue-watching .resume-card__thumb {
+    display: block !important; width: 100% !important; height: 100% !important;
+    object-fit: cover !important; border-radius: 10px !important;
+  }
+  body #track-continue-watching .resume-card :is(.resume-card__info, button) { display: none !important; }
+}
+
+@media (max-width: 768px) {
+  body #home-multi-rows .row:not(#track-continue-watching):not(#track-top10) .rank-card,
+  body #home-multi-rows #track-top10 .rank-card {
+    width: 128px !important; min-width: 128px !important; flex: 0 0 128px !important;
+    height: 192px !important; padding: 0 !important; margin: 0 !important;
+    transform: none !important;
+  }
+  body #home-multi-rows .row .rank-card__number { display: none !important; }
+}
+
+.detail-plot-more[hidden] { display: none !important; }
+.detail-plot-more { display: none; }
+@media (max-width: 768px) {
+  body #details-modal .modal-card:is(.modal-card--movie, :not(.modal-card--movie)) #detail-plot:not(.is-expanded) {
+    display: -webkit-box !important;
+    -webkit-box-orient: vertical !important;
+    -webkit-line-clamp: 4 !important;
+    line-clamp: 4;
+    overflow: hidden !important;
+    max-height: none !important;
+  }
+  body #details-modal .modal-card #detail-plot.is-expanded {
+    display: block !important;
+    overflow: visible !important;
+    -webkit-line-clamp: unset !important;
+    max-height: none !important;
+  }
+  body #details-modal .detail-plot-more:not([hidden]) {
+    display: inline-flex; align-items: center; align-self: flex-start;
+    min-height: 44px; padding: 6px 0; margin-top: 4px;
+    border: 0; background: transparent; color: #fff;
+    font: inherit; font-size: .9rem; font-weight: 700;
+    cursor: pointer; touch-action: manipulation;
+  }
+  body #details-modal .detail-plot-more:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+  body #details-modal .modal-card { touch-action: pan-x pan-y !important; -webkit-overflow-scrolling: touch; }
+  body #details-modal :is(.details-hero-banner, .details-hero-content, .details-body-section) {
+    overscroll-behavior-y: auto !important;
+  }
+}
+
+/* Anchor the title/logo over the cover, never below its fade on phones. */
+@media (max-width: 768px) {
+  body #details-modal .details-hero-content {
+    top: 0 !important;
+    position: relative !important;
+    padding-top: max(220px, calc(56.25vw + 20px)) !important;
+  }
+  body #details-modal .modal-card .details-hero-title {
+    position: absolute !important;
+    top: clamp(100px, 30vw, 200px);
+    left: 20px;
+    right: 20px;
+    margin: 0 !important;
+    z-index: 4;
+  }
+  body #details-modal .details-title-logo {
+    max-height: clamp(70px, 20vw, 110px);
+    max-width: min(90%, 320px);
+    width: auto;
+  }
+}

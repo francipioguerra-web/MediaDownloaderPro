@@ -506,17 +506,6 @@ document.addEventListener('DOMContentLoaded', () => {
           url: `${(det && det.domain) || currentScDomain}/it/watch/${titleId}?audio=orig`
         });
       }
-      // 3. Alternate sources (like TMDB / VidSrc / LookMovie)
-      const alts = (det && det.alt_sources && det.alt_sources.length > 0) ? det.alt_sources : (itemObj && itemObj.alt_sources ? itemObj.alt_sources : []);
-      alts.forEach((alt, idx) => {
-        allSources.push({
-          id: `alt-${idx}`,
-          name: alt.lang === 'eng' ? 'English HD (VidSrc/LookMovie)' : alt.name,
-          flag: alt.flag || '🇬🇧',
-          url: alt.watch_url
-        });
-      });
-
       if (allSources.length <= 1 && (!det || !det.sub_ita)) return '';
 
       let html = `
@@ -2048,38 +2037,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (floatSettingsMenu) floatSettingsMenu.classList.add('hidden');
 
     const targetUrl = mediaInfo.url || '';
-    const isEmbedUrl = targetUrl.includes('vidsrc') || targetUrl.includes('embed') || targetUrl.includes('lookmovie') || targetUrl.includes('superembed') || targetUrl.includes('autoembed') || targetUrl.includes('animeworld.ac/play');
-
-    const videoContainer = document.getElementById('sc-stream-video-container') || (scStreamVideo ? scStreamVideo.parentElement : null);
+    if (currentHls) { currentHls.destroy(); currentHls = null; }
     const floatControls = document.querySelector('.float-controls-panel');
-    let embedIframe = document.getElementById('sc-stream-embed-iframe');
-
-    if (currentHls) {
-      currentHls.destroy();
-      currentHls = null;
-    }
-
-    if (isEmbedUrl) {
-      // Show clean interactive embed player for English/International sources
-      if (scStreamVideo) {
-        scStreamVideo.style.display = 'none';
-        scStreamVideo.pause();
-      }
-      if (floatControls) floatControls.style.display = 'none';
-
-      if (!embedIframe && videoContainer) {
-        embedIframe = document.createElement('iframe');
-        embedIframe.id = 'sc-stream-embed-iframe';
-        embedIframe.allow = "autoplay; fullscreen; encrypted-media; picture-in-picture";
-        embedIframe.style.cssText = "width: 100%; height: 100%; border: none; position: absolute; inset: 0; z-index: 2; background: #000;";
-        videoContainer.appendChild(embedIframe);
-      }
-      if (embedIframe) {
-        embedIframe.style.display = 'block';
-        embedIframe.src = targetUrl;
-      }
-      return;
-    }
+    const embedIframe = document.getElementById('sc-stream-embed-iframe');
 
     // Direct HLS / StreamingCommunity Video Stream
     if (embedIframe) {

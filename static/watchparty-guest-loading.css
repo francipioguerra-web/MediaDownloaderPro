@@ -1,0 +1,16 @@
+#wp-guest-loading {position:absolute;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 50% 40%,#302329 0%,var(--bg-base,#1f1f1f) 65%);color:var(--text-primary,#f5f5f7);text-align:center;font-family:Inter,sans-serif;cursor:default;padding:32px;box-sizing:border-box}
+#wp-guest-loading[hidden],#wp-guest-loading button[hidden] {display:none!important}
+.wp-guest-loading-content {max-width:420px}
+.wp-guest-loading-label {font-size:11px;font-weight:600;letter-spacing:3px;color:var(--text-secondary,#9ca0ad)}
+#wp-guest-loading h2 {font-size:clamp(22px,3vw,30px);font-weight:600;line-height:1.25;margin:26px 0 12px;letter-spacing:-.6px}
+#wp-guest-loading p {font-size:14px;color:var(--text-secondary,#9ca0ad);line-height:1.6;margin:0}
+.wp-guest-loading-dots {display:flex;gap:9px;justify-content:center;margin-top:32px}
+.wp-guest-loading-dots i {width:8px;height:8px;background:var(--accent,#e50914);border-radius:50%;animation:wp-guest-loading-bounce 1.2s ease-in-out infinite}
+.wp-guest-loading-dots i:nth-child(2) {animation-delay:.15s}
+.wp-guest-loading-dots i:nth-child(3) {animation-delay:.3s}
+@keyframes wp-guest-loading-bounce {0%,60%,100% {transform:translateY(0);opacity:.4}30% {transform:translateY(-7px);opacity:1}}
+#wp-guest-loading button {margin-top:24px;border:0;border-radius:12px;background:var(--accent,#e50914);padding:12px 24px;font:600 14px Inter,sans-serif;color:white;cursor:pointer;touch-action:manipulation}
+#wp-guest-loading button:focus-visible {outline:2px solid white;outline-offset:4px}
+#player-modal.wp-guest-starting #btn-player-close-x,
+#player-modal.wp-guest-starting #watchparty-active-banner {z-index:100001!important;opacity:1!important;visibility:visible!important;pointer-events:auto!important}
+@media(prefers-reduced-motion:reduce) {.wp-guest-loading-dots i {animation:none;opacity:.8}}

@@ -48,3 +48,25 @@ test_*.py
 sc.html
 vix.html
 node_modules/
+
+# Local signing key for media URLs
+data/.vixcloud_media_secret
+data/home_catalog_cache.json
+data/home_catalog_cache.json.tmp
+data/home_genres_cache.json
+data/home_genres_cache.json.tmp
+
+data/home_catalog_vixcloud.json
+data/home_catalog_vixcloud.json.tmp
+
+data/home_genres_vixcloud.json
+data/home_genres_vixcloud.json.tmp
+data/dates_cache_vixcloud.json
+
+# Credentials and local configuration
+.env
+.env.*
+!.env.example
+.gemini_api_key
+
+.tmdb_api_key

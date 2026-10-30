@@ -43,7 +43,7 @@ def main():
 
     if SOCKETIO_AVAILABLE and socketio:
         print("  • WebSocket Real-Time Sync      : Attivo (Socket.IO)\n")
-        socketio.run(app, host=args.host, port=port, debug=False, allow_unsafe_werkzeug=True)
+        socketio.run(app, host=args.host, port=port, debug=False, allow_unsafe_werkzeug=True, threaded=True)
     else:
         print("  • WebSocket Real-Time Sync      : Standby / HTTP Fallback\n")
         app.run(host=args.host, port=port, debug=False, threaded=True)

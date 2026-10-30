@@ -1,0 +1,16 @@
+.download-options { margin:auto; box-sizing:border-box; width:min(620px,calc(100vw - 32px)); max-height:calc(100dvh - 48px); overflow:auto; padding:28px; border:1px solid #ffffff24; border-radius:20px; background:#17171e; color:#fff; box-shadow:0 24px 90px #000b; font-family:inherit; }
+.download-options::backdrop { background:#000b; backdrop-filter:blur(8px); }
+.download-options h2 { margin:0 0 10px; font-size:24px; }
+.download-options__name { color:#ddd; font-size:14px; line-height:1.5; }
+.download-options__status { color:#aaa; font-size:13px; line-height:1.5; min-height:40px; }
+.download-options__sources { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:14px; }
+.download-options__source { border:1px solid #ffffff1c; border-radius:14px; padding:18px; background:#ffffff04; }
+.download-options__source h3 { margin:0 0 16px; font-size:17px; }
+.download-options label { display:flex; flex-direction:column; gap:8px; color:#bbb; font-size:13px; }
+.download-options select { width:100%; padding:10px; background:#272730; border:1px solid #ffffff24; color:white; border-radius:8px; font:inherit; }
+.download-options button { padding:11px 14px; border:0; border-radius:8px; color:white; font:inherit; cursor:pointer; }
+.download-options__source button { width:100%; margin-top:18px; background:#e50914; font-size:13px; font-weight:650; }
+.download-options__source button:hover { background:#f51b26; }
+.download-options__cancel { margin-top:22px; background:#303038; }
+.download-options button:focus-visible, .download-options select:focus-visible { outline:2px solid white; outline-offset:3px; }
+@media(max-width:480px) { .download-options { padding:22px; } }

@@ -1,0 +1,465 @@
+/* Spacious detail sheets shared by films and TV series. */
+#details-modal { z-index: 10000; }
+@media (min-width: 769px) {
+  #details-modal {
+    padding: 3dvh 2vw !important;
+    box-sizing: border-box;
+  }
+  #details-modal .modal-card,
+  #details-modal .modal-card.modal-card--movie {
+    width: min(1680px, 96vw);
+    max-width: 1680px;
+    max-height: 94dvh !important;
+    min-height: min(820px, 94dvh);
+    background: #0e0f14;
+    scroll-padding-top: 32px;
+  }
+  #details-modal .modal-card .details-hero-banner {
+    min-height: clamp(520px, 68dvh, 780px) !important;
+    padding: clamp(140px, 20dvh, 240px) clamp(32px, 4vw, 72px) 40px !important;
+    background-position: center 20%;
+  }
+  #details-modal .modal-card .details-hero-content {
+    max-width: min(850px, 72%);
+  }
+  #details-modal .details-hero-overlay {
+    background: linear-gradient(90deg, rgba(14,15,20,.65), transparent 85%),
+      linear-gradient(0deg, #0e0f14 0%, rgba(14,15,20,.3) 36%, transparent 72%);
+  }
+  #details-modal .details-hero-content::before { display: none; }
+  #details-modal .details-hero-meta-row { margin-bottom: 24px; gap: 16px; }
+  body #details-modal .modal-card .details-hero-title {
+    font-size: clamp(2.5rem, 4vw, 4.5rem) !important;
+    margin-bottom: 24px;
+  }
+  #details-modal .modal-card .details-hero-plot {
+    max-height: none;
+    -webkit-line-clamp: 4;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-bottom: 0;
+    font-size: 1.05rem;
+    line-height: 1.7;
+  }
+  #details-modal .details-hero-actions {
+    margin-top: 32px !important;
+    margin-bottom: 0 !important;
+    gap: 18px;
+  }
+  #details-modal .details-body-section {
+    padding: 24px clamp(32px, 4vw, 72px) 56px !important;
+  }
+  #details-modal .details-cast-section { margin-top: 36px; }
+  #details-modal .modal-options-title { margin-bottom: 16px !important; }
+  #details-modal .season-select-wrapper + .modal-options-title { margin-top: 36px !important; }
+  #details-modal .season-dropdown-select { min-height: 54px; }
+  #details-modal #episodes-container { gap: 24px; padding-top: 16px !important; }
+  #details-modal .modal-close-btn { top: 22px; right: 22px; z-index: 10; }
+}
+@media (max-width: 768px) {
+  #details-modal .modal-card .details-hero-banner {
+    min-height: 58dvh !important;
+    padding-top: 140px !important;
+    padding-bottom: 28px !important;
+  }
+  #details-modal .details-hero-actions { margin-top: 24px !important; gap: 14px !important; }
+  #details-modal .details-body-section { padding-top: 24px !important; padding-bottom: 36px !important; }
+  #details-modal .modal-options-title { margin-bottom: 14px !important; }
+  #details-modal .season-select-wrapper + .modal-options-title { margin-top: 28px !important; }
+}
+
+/* Vertical gestures always reach the detail sheet, including over carousels. */
+#details-modal { touch-action: pan-x pan-y; }
+#details-modal .modal-card {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  overscroll-behavior-y: contain !important;
+  touch-action: pan-x pan-y !important;
+}
+#details-modal :is(.episodes-list, .details-cast-track) {
+  overscroll-behavior-y: auto !important;
+  touch-action: pan-x pan-y !important;
+}
+
+/* The artwork must not become a separate, non-scrollable scroll container. */
+body #details-modal .details-hero-banner {
+  overflow: clip !important;
+  overscroll-behavior: auto !important;
+}
+body #details-modal :is(.details-hero-content, .details-body-section) {
+  overscroll-behavior-y: auto !important;
+}
+
+/* Cinematic title sheet: artwork stays dominant, controls sit on the image. */
+body #details-modal {
+  background: rgba(0, 0, 0, .88);
+  backdrop-filter: blur(12px);
+}
+body #details-modal .modal-card {
+  background: #08090b;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 12px;
+  box-shadow: 0 32px 120px rgba(0,0,0,.65);
+}
+body #details-modal .details-hero-banner {
+  background-position: center 22%;
+  border-radius: 0;
+}
+body #details-modal .details-hero-overlay {
+  background: linear-gradient(90deg, rgba(0,0,0,.67) 0%, rgba(0,0,0,.3) 38%, transparent 72%),
+    linear-gradient(0deg, #08090b 0%, rgba(8,9,11,.72) 12%, rgba(8,9,11,.12) 60%, rgba(0,0,0,.08) 100%);
+}
+body #details-modal .details-hero-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+body #details-modal .details-hero-title {
+  order: -2;
+  font-weight: 800;
+  letter-spacing: -.035em;
+  line-height: 1.04;
+  text-wrap: balance;
+}
+body #details-modal .details-hero-meta-row {
+  order: -1;
+  gap: 10px;
+  margin: 0 0 18px;
+}
+body #details-modal .details-hero-meta { color: #dedee2; font-weight: 500; }
+body #details-modal .hero-tag {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,.5);
+  border-radius: 4px;
+  font-size: .65rem;
+}
+body #details-modal .modal-card .details-hero-plot {
+  color: #c3c3c8;
+  font-size: 1rem;
+  line-height: 1.5;
+  max-width: 590px;
+  padding: 0;
+}
+body #details-modal .details-hero-actions {
+  gap: 12px;
+  margin-top: 26px !important;
+  flex-wrap: wrap;
+}
+body #details-modal .details-hero-actions .btn-modal-action {
+  height: 48px;
+  min-width: 48px;
+  max-width: 48px;
+  padding: 0 13px;
+  justify-content: center;
+  background: rgba(0,0,0,.58);
+  border: 1px solid rgba(255,255,255,.16);
+}
+body #details-modal .details-hero-actions #btn-modal-player-open,
+body #details-modal .details-hero-actions #btn-modal-player-open:hover {
+  width: auto;
+  max-width: 280px !important;
+  padding: 0 26px !important;
+  background: #f5f5f7 !important;
+  border-color: #f5f5f7 !important;
+  color: #111 !important;
+  gap: 10px;
+}
+body #details-modal #btn-modal-player-open .btn-modal-label {
+  max-width: 200px !important;
+  opacity: 1 !important;
+  margin-left: 0 !important;
+  font-size: 1rem;
+  font-weight: 750;
+  color: #111 !important;
+}
+body #details-modal .details-hero-actions #btn-modal-player-open svg {
+  fill: #111 !important;
+  stroke: #111 !important;
+  color: #111 !important;
+}
+body #details-modal .btn-modal-action:focus-visible,
+body #details-modal .modal-close-btn:focus-visible {
+  outline: 2px solid white;
+  outline-offset: 5px;
+}
+body #details-modal .details-body-section { background: #08090b; }
+body #details-modal .modal-close-btn {
+  background: rgba(0,0,0,.55);
+  border: 1px solid rgba(255,255,255,.2);
+}
+@media (min-width: 769px) {
+  body #details-modal { padding: 5dvh 5vw !important; }
+  body #details-modal .modal-card,
+  body #details-modal .modal-card.modal-card--movie {
+    width: min(1680px, 90vw);
+    min-height: min(780px, 90dvh);
+    max-height: 90dvh !important;
+  }
+  body #details-modal .modal-card .details-hero-banner {
+    min-height: clamp(610px, 79dvh, 1000px) !important;
+    padding: clamp(210px, 31dvh, 380px) clamp(36px, 4vw, 76px) 48px !important;
+  }
+  body #details-modal .modal-card .details-hero-content {
+    max-width: min(640px, 58%);
+  }
+  body #details-modal .modal-card .details-hero-title {
+    font-size: clamp(2.8rem, 4.8vw, 5rem) !important;
+    margin-bottom: 18px;
+  }
+  body #details-modal .details-cast-section { margin-top: 32px; width: 100%; }
+  body #details-modal .details-body-section { padding-top: 12px !important; }
+}
+@media (max-width: 768px) {
+  body #details-modal .modal-card .details-hero-banner {
+    min-height: 70dvh !important;
+    padding: 220px 24px 30px !important;
+  }
+  body #details-modal .modal-card .details-hero-content { max-width: 100%; }
+  body #details-modal .modal-card .details-hero-title { font-size: clamp(2rem, 8vw, 3rem) !important; }
+  body #details-modal .details-hero-actions { gap: 9px !important; }
+  body #details-modal .details-hero-actions #btn-modal-player-open { padding: 0 20px !important; }
+}
+/* Keep the compact action row consistent with the cinematic sheet on phones. */
+@media (max-width: 768px) {
+  body #details-modal .details-hero-actions { display: flex !important; width: 100% !important; }
+  body #details-modal .details-hero-actions .btn-modal-action {
+    flex: 0 0 44px !important;
+    width: 44px !important;
+    min-width: 44px !important;
+    max-width: 44px !important;
+    height: 44px !important;
+    border-radius: 50% !important;
+    padding: 0 11px !important;
+    background: rgba(0,0,0,.55) !important;
+  }
+  body #details-modal .details-hero-actions #btn-modal-player-open {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    max-width: 200px !important;
+    border-radius: 999px !important;
+    padding: 0 22px !important;
+    background: #f5f5f7 !important;
+  }
+}
+
+/* Episodes meet the artwork fade; season control is a compact pill. */
+body #details-modal #seasons-container.details-body-section {
+  position: relative;
+  z-index: 4;
+  margin-top: -14px;
+  padding-top: 0 !important;
+  background: transparent;
+}
+body #details-modal #seasons-container > .modal-options-title { display: none !important; }
+body #details-modal #seasons-container > .season-select-wrapper {
+  display: inline-block;
+  width: auto !important;
+  max-width: 100%;
+  margin: 0 0 14px !important;
+}
+body #details-modal #season-dropdown {
+  width: auto !important;
+  max-width: 100%;
+  min-height: 42px !important;
+  height: 42px;
+  padding: 0 42px 0 18px !important;
+  border-radius: 999px !important;
+  background-color: rgba(255,255,255,.1);
+  background-position: right 14px center;
+  font-size: .88rem;
+}
+body #details-modal #episodes-container {
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+}
+body #details-modal .modal-card .details-hero-banner {
+  padding-bottom: 32px !important;
+}
+@media (min-width: 769px) {
+  body #details-modal .modal-card:not(.modal-card--movie) .details-hero-banner {
+    min-height: clamp(460px, 65dvh, 800px) !important;
+    padding-top: clamp(140px, 23dvh, 280px) !important;
+  }
+}
+
+/* Fade artwork and trailer into the exact same surface as the episode rail. */
+body #details-modal .modal-card,
+body #details-modal .modal-card.modal-card--movie {
+  background-color: #08090b !important;
+}
+body #details-modal .details-hero-blur-bottom {
+  display: block !important;
+  height: 180px !important;
+  background: linear-gradient(to bottom, rgba(8,9,11,0) 0%, rgba(8,9,11,.45) 40%, #08090b 100%) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  mask-image: none !important;
+  -webkit-mask-image: none !important;
+  z-index: 2;
+}
+body #details-modal .details-hero-banner::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 110px;
+  background: linear-gradient(to bottom, rgba(8,9,11,0), #08090b);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Lift title, synopsis and actions away from the season control below. */
+body #details-modal .details-hero-content { top: -28px; }
+@media (max-width: 768px) {
+  body #details-modal .details-hero-content { top: -20px; }
+}
+
+body #details-modal #btn-modal-player-open,
+body #details-modal #btn-modal-player-open * {
+  text-shadow: none !important;
+  filter: none !important;
+  -webkit-text-stroke: 0 !important;
+}
+body #details-modal .details-hero-actions #btn-modal-player-open {
+  max-width: none !important;
+  flex-shrink: 0;
+}
+body #details-modal #btn-modal-player-open .btn-modal-label {
+  max-width: none !important;
+  letter-spacing: 0;
+}
+body #details-modal .details-title-logo {
+  display: block;
+  width: auto;
+  max-width: min(100%, 430px);
+  max-height: 150px;
+  object-fit: contain;
+  object-position: left center;
+}
+@media (max-width: 768px) {
+  body #details-modal .details-title-logo { max-width: min(100%, 320px); max-height: 115px; }
+  body #details-modal .details-hero-actions #btn-modal-player-open { max-width: 100% !important; }
+}
+
+/* On mobile, center secondary controls on their own row below playback. */
+@media (max-width: 768px) {
+  body #details-modal .details-hero-actions {
+    justify-content: center !important;
+  }
+  body #details-modal .details-hero-actions #btn-modal-player-open {
+    flex: 0 0 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-bottom: 4px !important;
+  }
+}
+
+/* Full cast occupies the sheet width and grows with all returned actors. */
+body #details-modal > .modal-card > #detail-cast-section {
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 0;
+  padding-top: 20px !important;
+}
+body #details-modal .details-cast-track {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 22px 18px;
+  overflow: visible !important;
+  max-height: none !important;
+  padding: 4px 0 12px;
+}
+body #details-modal .cast-member-card {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+}
+body #details-modal :is(.cast-member-name, .cast-member-char) {
+  width: 100%;
+  max-width: none !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  overflow-wrap: anywhere;
+  -webkit-line-clamp: unset !important;
+}
+@media (max-width: 768px) {
+  body #details-modal .details-cast-track {
+    grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+    gap: 20px 12px;
+  }
+}
+
+/* Keep the complete cast in one horizontally scrollable row. */
+body #details-modal .details-cast-track {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  gap: 18px;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  padding: 6px 0 14px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+body #details-modal .cast-member-card {
+  flex: 0 0 124px;
+  width: 124px;
+  scroll-snap-align: start;
+}
+@media (max-width: 768px) {
+  body #details-modal .details-cast-track { gap: 12px; }
+  body #details-modal .cast-member-card { flex-basis: 108px; width: 108px; }
+}
+
+/* Only the backdrop behind the sheet is untinted blur. */
+body #details-modal {
+  background: transparent !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+}
+
+/* Softer corners for the main detail sheet. */
+body #details-modal .modal-card,
+body #details-modal .modal-card.modal-card--movie {
+  border-radius: 24px !important;
+}
+
+#hero-title .hero-title-logo { display:block; width:auto; height:auto; max-width:min(80vw,460px); max-height:clamp(90px,12vw,165px); object-fit:contain; object-position:left bottom; filter:drop-shadow(0 3px 8px rgba(0,0,0,.45)); }
+@media(max-width:768px) { #hero-title .hero-title-logo { max-width:min(76vw,320px); max-height:110px; } }
+#source-home-rows .row-section__header { display:flex; align-items:center; gap:16px; }
+#source-home-rows .row-section__header h2 { margin-right:auto; }
+#source-home-rows .carousel-see-all { margin-left:auto; flex-shrink:0; background:none; border:0; color:rgba(255,255,255,.8); font:inherit; font-size:13px; cursor:pointer; padding:8px 0; }
+#source-home-rows .carousel-see-all:hover { color:white; text-decoration:underline; }
+#section-continue-watching .row-section__header { display:flex; align-items:center; justify-content:space-between; }
+#browse-all-continue-watching { margin-left:auto; background:none; border:0; color:rgba(255,255,255,.8); font:inherit; font-size:13px; cursor:pointer; padding:8px 0; }
+
+/* Keep loading rails the same shape as their content, without clickable fake cards. */
+.loading-cards {
+  display: flex;
+  flex: 1 0 100%;
+  width: 100%;
+  min-width: 0;
+  gap: inherit;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+.loading-card { flex: 0 0 var(--poster-w, 180px); min-width: 0; }
+.loading-card__image { width: 100%; aspect-ratio: 2 / 3; border-radius: 16px; }
+.loading-shimmer {
+  background: linear-gradient(105deg, #202024 20%, #303036 40%, #202024 60%);
+  background-size: 250% 100%;
+  animation: card-loading-shimmer 1.8s ease-in-out infinite;
+}
+.loading-cards--episodes { gap: 24px; grid-column: 1 / -1; }
+.loading-cards--episodes .loading-card { flex-basis: 280px; }
+.loading-cards--episodes .loading-card__image { aspect-ratio: 16 / 9; }
+.loading-card__line { height: 12px; width: 82%; margin-top: 14px; border-radius: 5px; }
+.loading-card__line--short { width: 55%; height: 10px; margin-top: 9px; }
+@keyframes card-loading-shimmer { from { background-position: 150% 0; } to { background-position: -100% 0; } }
+@media (max-width: 768px) {
+  .loading-cards--episodes { gap: 14px; }
+  .loading-cards--episodes .loading-card { flex-basis: min(72vw, 280px); }
+}
+@media (prefers-reduced-motion: reduce) { .loading-shimmer { animation: none; } }

@@ -1,0 +1,51 @@
+#wp-chat-toggle {position:absolute;right:64px;top:22px;z-index:10001;width:36px;height:36px;display:flex;align-items:center;justify-content:center;border:1px solid #ffffff24;border-radius:12px;background:var(--bg-surface,#272727);color:var(--text-primary,#f5f5f7);cursor:pointer;touch-action:manipulation}
+#wp-chat-toggle:hover,#wp-chat-toggle[aria-expanded="true"] {border-color:var(--accent,#e50914)}
+#wp-chat-toggle[hidden],#wp-chat-panel[hidden],.wp-chat-unread[hidden] {display:none!important}
+.wp-chat-unread {position:absolute;right:-5px;top:-5px;min-width:17px;height:17px;padding:0 3px;border-radius:20px;background:var(--accent,#e50914);color:white;font:600 10px/17px Inter,sans-serif}
+#player-modal {--wp-chat-width:320px}
+#wp-chat-panel {position:absolute;inset:0 0 0 auto;width:var(--wp-chat-width);z-index:10000;display:flex;flex-direction:column;background:var(--bg-base,#1f1f1f);border-left:1px solid #ffffff16;color:var(--text-primary,#f5f5f7);font:14px/1.5 Inter,sans-serif;cursor:default;touch-action:pan-y;user-select:text;-webkit-user-select:text}
+#wp-chat-panel header {display:flex;align-items:center;justify-content:space-between;padding:24px 18px 18px;border-bottom:1px solid #ffffff12}
+#wp-chat-panel strong {font-size:15px;font-weight:600}
+#wp-chat-panel small {display:block;font-size:11px;color:var(--text-secondary,#9ca0ad);margin-top:3px}
+#wp-chat-panel button {cursor:pointer;color:inherit;font:inherit;border:0}
+#wp-chat-panel header button {background:transparent;font-size:26px;width:32px;height:32px;border-radius:8px}
+#wp-chat-panel button:focus-visible,#wp-chat-toggle:focus-visible {outline:2px solid var(--accent,#e50914);outline-offset:3px}
+.wp-chat-messages {flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:18px 14px;scrollbar-width:thin}
+.wp-chat-empty {color:var(--text-secondary,#9ca0ad);text-align:center;padding:24px 8px;font-size:13px}
+.wp-chat-message {max-width:90%;width:fit-content;background:var(--bg-elevated,#323232);border:1px solid #ffffff0c;border-radius:12px 12px 12px 3px;padding:10px 12px;margin:0 0 12px;overflow-wrap:anywhere}
+.wp-chat-message.own {margin-left:auto;background:#e509141c;border-color:#e5091433;border-radius:12px 12px 3px 12px}
+.wp-chat-meta {font-size:10px;color:var(--text-secondary,#9ca0ad);margin-bottom:4px}
+.wp-chat-message p {margin:0;white-space:pre-wrap;font-size:13px}
+#wp-chat-panel form {padding:12px 14px 18px;border-top:1px solid #ffffff12;margin:0}
+.wp-chat-label {position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.wp-chat-compose {display:flex;gap:8px}
+#wp-chat-input {min-width:0;flex:1;background:var(--bg-surface,#272727);border:1px solid #ffffff20;border-radius:10px;color:inherit;padding:11px 12px;font:14px Inter,sans-serif;user-select:text;-webkit-user-select:text;touch-action:manipulation}
+#wp-chat-input:focus {outline:0;border-color:var(--accent,#e50914)}
+#wp-chat-panel [type="submit"] {background:var(--accent,#e50914);color:white;border-radius:10px;width:38px;font-size:22px}
+#wp-chat-panel [type="submit"]:disabled {opacity:.5;cursor:wait}
+.wp-chat-status {font-size:11px;color:var(--text-secondary,#9ca0ad);padding:0 16px;margin:4px 0;min-height:16px}
+#player-modal.wp-chat-open .player-video {inset:0 auto 0 0!important;width:calc(100% - var(--wp-chat-width))!important;height:100%!important;object-fit:contain!important}
+#player-modal.wp-chat-open #player-controls-bar {left:calc((100% - var(--wp-chat-width)) / 2)!important;min-width:0!important;width:calc(100% - var(--wp-chat-width) - 32px)!important;box-sizing:border-box}
+#player-modal.wp-chat-open .player-top-title-container,
+#player-modal.wp-chat-open .player-big-play-btn,
+#player-modal.wp-chat-open .player-center-feedback {left:calc((100% - var(--wp-chat-width)) / 2)!important}
+#player-modal.wp-chat-open .player-loading-overlay,
+#player-modal.wp-chat-open .player-netflix-intro {right:var(--wp-chat-width)!important;width:calc(100% - var(--wp-chat-width))!important}
+#player-modal.wp-chat-open .player-floating-close-btn {right:calc(var(--wp-chat-width) + 24px)!important}
+#player-modal.wp-chat-open > #wp-chat-toggle {right:calc(var(--wp-chat-width) + 64px)}
+#player-modal.wp-chat-open {cursor:default!important}
+@media(max-width:800px) and (orientation:landscape) {#player-modal {--wp-chat-width:260px}}
+@media(max-width:600px) and (orientation:portrait) {
+  #player-modal.wp-chat-open .player-video {inset:0 0 auto 0!important;width:100%!important;height:52%!important}
+  #player-modal.wp-chat-open #player-controls-bar {left:50%!important;width:calc(100% - 32px)!important;bottom:calc(48% + 16px)!important}
+  #player-modal.wp-chat-open .player-top-title-container,
+  #player-modal.wp-chat-open .player-big-play-btn,
+  #player-modal.wp-chat-open .player-center-feedback {left:50%!important}
+  #player-modal.wp-chat-open .player-loading-overlay,
+  #player-modal.wp-chat-open .player-netflix-intro {right:0!important;width:100%!important;height:52%!important}
+  #player-modal.wp-chat-open .player-floating-close-btn {right:24px!important}
+  #wp-chat-panel {inset:52% 0 0;width:100%;border-left:0;border-top:1px solid #ffffff16}
+  #wp-chat-panel header {padding:10px 16px}
+  #wp-chat-panel small {display:none}
+  #player-modal.wp-chat-open > #wp-chat-toggle {right:64px}
+}

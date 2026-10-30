@@ -1,10 +1,14 @@
 services:
   - type: web
-    name: serverwatchparty
-    env: node
+    name: streamingcommunity
+    runtime: docker
     plan: free
-    buildCommand: npm install
-    startCommand: node server.js
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
     envVars:
-      - key: PORT
-        value: 10000
+      - key: DATA_DIR
+        value: /app/data
+      - key: DOWNLOADS_DIR
+        value: /app/data/downloads
+      - key: WATCHPARTY_LOCAL_ONLY
+        value: "1"

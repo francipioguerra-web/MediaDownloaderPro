@@ -1,0 +1,10 @@
+.catalog-drag-preview {
+  position:fixed; inset:0; z-index:9900; overflow:hidden; pointer-events:none;
+  background:#101116; color:#fff; padding:100px 4vw 40px;
+  box-shadow:-24px 0 70px #0009; will-change:transform;
+}
+.catalog-drag-preview h1 { margin:0 0 32px; font-size:32px; }
+.catalog-drag-preview__grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:24px; }
+.catalog-drag-preview__grid > * { width:100%!important; min-width:0!important; opacity:1!important; transform:none!important; animation:none!important; }
+.catalog-drag-preview__grid .card { opacity:1!important; transform:none!important; }
+@media(max-width:768px){.catalog-drag-preview__grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}}

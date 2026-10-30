@@ -1,0 +1,30 @@
+/* A short 2D entrance avoids permanent compositing layers on every poster. */
+@media(min-width:769px) {
+  #home-multi-rows .home-sections-container .row .card-scroll-settle {
+    transition: opacity 300ms ease, transform 360ms cubic-bezier(.22,.61,.36,1), width 260ms ease !important;
+    transition-delay: var(--settle-delay,0ms), var(--settle-delay,0ms), 0ms !important;
+    will-change: auto;
+  }
+  #home-multi-rows .home-sections-container .row .card-scroll-settle:not(.is-settled) {
+    opacity:0 !important;
+    transform:translateY(14px) !important;
+  }
+  #home-multi-rows .home-sections-container .row .card-scroll-settle.is-settled {
+    opacity:1 !important;
+    transform:none !important;
+  }
+  #home-multi-rows .home-sections-container .rank-card > .card-scroll-settle {
+    opacity:1 !important; transform:none !important;
+  }
+  #home-multi-rows .row-section-scroll-reveal .row-section__header {
+    transition:opacity 260ms ease, transform 300ms ease;
+    transform:translateY(8px); will-change:auto;
+  }
+  #home-multi-rows .row-section-scroll-reveal.is-revealed .row-section__header {transform:none;}
+}
+@media(prefers-reduced-motion:reduce) {
+  #home-multi-rows .home-sections-container .row .card-scroll-settle,
+  #home-multi-rows .row-section-scroll-reveal .row-section__header {
+    opacity:1 !important; transform:none !important; transition:none !important;
+  }
+}

@@ -48,8 +48,8 @@ test('buffering and autoplay rejection do not confirm playback', async () => {
   g.sync.event('playing'); await g.sync.serial;
   assert.equal(g.messages.length,0);
 });
-test('host waits for its own buffer, retries lost commands, and never times out into playback', async () => {
-  const h=peer('host'); h.video.readyState=1;
+test('host waits for metadata, retries lost commands, and never times out into playback', async () => {
+  const h=peer('host'); h.video.readyState=0;
   h.sync.request(false,120); await h.sync.serial;
   assert.equal(h.messages.length,0);
   h.video.readyState=4; h.sync.tick(); await h.sync.serial;
@@ -141,12 +141,12 @@ test('late seeked for the pending startup does not generate a second command', a
 function playerReadyFixture() {
   const fs=require('node:fs'), path=require('node:path'), vm=require('node:vm');
   const html=fs.readFileSync(path.join(__dirname,'../templates/index.html'),'utf8');
-  const start=html.indexOf('        let hasResumed = false;',html.indexOf('function playInWebPlayer('));
-  const end=html.indexOf("        if (webVideo) {\n          webVideo.addEventListener('loadeddata'",start);
+  const start=html.indexOf('        const loadRevision = ++playerLoadRevision;',html.indexOf('function playInWebPlayer('));
+  const end=html.indexOf("        if (typeof Hls !== 'undefined'",start);
   const calls=[], listeners=[];
-  const ctx={loadRevision:1,playerLoadRevision:1,resumeTime:1356,watchPartyRole:'host',
+  const ctx={playerLoadRevision:0,resumeTime:1356,watchPartyRole:'host',
     webVideo:{readyState:1,currentTime:0,addEventListener:(ev,fn)=>listeners.push(fn)},
-    wpConfirmedSync:{request:(...args)=>calls.push(args)},wpCurrentMedia:()=>({key:'s3e8'}),
+    wpConfirmedSync:{role:'host', request:(...args)=>calls.push(args)},wpCurrentMedia:()=>({key:'s3e8'}),
     hidePlayerLoader(){},autoEnterMobileLandscape(){},wakePlayerControls(){},showToast(){},formatTime:String};
   vm.createContext(ctx);vm.runInContext(html.slice(start,end)+'\nglobalThis.runReady=onReady;',ctx);
   return {ctx,calls,listeners};
@@ -162,4 +162,136 @@ test('startup waits for metadata before applying the saved resume position', () 
 });
 test('callbacks from a replaced media load cannot restart the current episode', () => {
   const {ctx,calls}=playerReadyFixture();ctx.playerLoadRevision=2;ctx.runReady();assert.equal(calls.length,0);
+});
+test('guest pause and seek become one host command; remote events do not echo', async () => {
+  const h=peer('host'),g=peer('guest');g.sync.mediaKey='episode-2';
+  h.sync.request(false,120,h.sync.media());await h.sync.serial;
+  await g.sync.receive(state(h.messages.at(-1)));g.sync.event('play');g.sync.event('playing');await g.sync.serial;
+  await h.sync.receive(state(g.messages.at(-1)));h.sync.event('play');
+  g.video.pause();g.sync.event('pause');await g.sync.serial;
+  const intent=g.messages.at(-1);assert.equal(intent.kind,'intent');assert.equal(intent.paused,true);
+  await h.sync.receive(state(intent));await h.sync.serial;
+  const command=h.messages.at(-1);assert.equal(command.intent,intent.token);
+  await g.sync.receive(state(command));await g.sync.serial;
+  await h.sync.receive(state(g.messages.at(-1)));
+  assert.equal(h.video.paused,true);assert.equal(g.video.paused,true);assert.equal(g.sync.intent,null);
+  g.video.currentTime=240;g.sync.event('seeked');await g.sync.serial;
+  await h.sync.receive(state(g.messages.at(-1)));await h.sync.serial;
+  await g.sync.receive(state(h.messages.at(-1)));await g.sync.serial;
+  await h.sync.receive(state(g.messages.at(-1)));
+  assert.equal(h.video.currentTime,240);assert.equal(h.video.paused,true);
+  const count=g.messages.length;await g.sync.receive(state(h.messages.at(-1)));await g.sync.serial;
+  assert.equal(g.messages.length,count);
+});
+test('guest retries a lost intent and host deduplicates it',async()=>{
+ const h=peer('host'),g=peer('guest');g.sync.request(true,220,g.sync.media());await g.sync.serial;
+ const intent=g.messages[0];g.sync.lastWrite=0;g.sync.tick();await g.sync.serial;
+ assert.equal(g.messages.at(-1).token,intent.token);
+ await h.sync.receive(state(intent));await h.sync.serial;
+ await h.sync.receive(state(intent));assert.equal(h.sync.sequence,1);
+});
+test('guest buffering notice survives an overwritten hub slot',async()=>{
+ const g=peer('guest');g.sync.latest=4;g.sync.command={id:4};g.sync.desiredPaused=false;g.sync.acknowledgedId=4;
+ g.video.readyState=2;g.sync.bufferSince=Date.now()-1000;g.sync.tick();await g.sync.serial;
+ assert.equal(g.messages.at(-1).kind,'buffer');g.sync.lastWrite=0;g.sync.tick();await g.sync.serial;
+ assert.equal(g.messages.at(-1).kind,'buffer');
+});
+test('rejoining guest requests a new confirmed command without restarting on duplicate join',async()=>{
+ const h=peer('host');h.sync.desiredPaused=false;h.video.paused=false;
+ const join={kind:'join',token:'new-guest'};await h.sync.receive(state(join));await h.sync.serial;
+ assert.equal(h.video.paused,true);assert.equal(h.sync.sequence,1);
+ await h.sync.receive(state(join));assert.equal(h.sync.sequence,1);
+});
+
+test('play followed by pause while host is waiting sends the latest intended state', async () => {
+  const h=peer('host');
+  h.sync.toggle();
+  assert.equal(h.video.paused,true);
+  assert.equal(h.sync.desiredPaused,false);
+  h.sync.toggle(); while (h.sync.queued) await h.sync.serial;
+  assert.equal(h.sync.pending.paused,true);
+  assert.equal(h.messages.length,1);
+  assert.equal(h.messages[0].paused,true);
+});
+test('rapid forward and back accumulate from the pending shared position', async () => {
+  for (const role of ['host','guest']) {
+    const p=peer(role);p.sync.desiredPaused=false;
+    p.sync.skip(10);p.sync.skip(10);p.sync.skip(-10);while (p.sync.queued) await p.sync.serial;
+    const cmd=p.messages.at(-1);
+    assert.equal(cmd.time,130);assert.equal(cmd.paused,false);
+    assert.equal(p.messages.length,1,'obsolete queued controls are discarded');
+  }
+});
+test('guest can override an applying remote command with a new explicit pause', async () => {
+  const h=peer('host'),g=peer('guest');g.sync.mediaKey='episode-2';
+  h.sync.toggle();await h.sync.serial;
+  await g.sync.receive(state(h.messages.at(-1)));
+  assert.equal(g.sync.applying,true);
+  g.sync.toggle();await g.sync.serial;
+  assert.equal(g.video.paused,true);
+  assert.equal(g.messages.at(-1).paused,true);
+  await h.sync.receive(state(g.messages.at(-1)));await h.sync.serial;
+  await g.sync.receive(state(h.messages.at(-1)));await g.sync.serial;
+  await h.sync.receive(state(g.messages.at(-1)));
+  assert.equal(h.sync.pending,null);
+  assert.equal(h.video.paused,true);assert.equal(g.video.paused,true);
+});
+test('pause completes even when there is not enough buffer to resume playback', async () => {
+  const h=peer('host'),g=peer('guest');h.video.readyState=2;g.video.readyState=2;
+  h.sync.request(true,120);await h.sync.serial;
+  assert.equal(h.messages.length,1);
+  await g.sync.receive(state(h.messages[0]));await g.sync.serial;
+  assert.equal(g.messages[0].kind,'ack');
+  await h.sync.receive(state(g.messages[0]));assert.equal(h.sync.pending,null);
+});
+test('seeks clamp to the media duration and retain paused playback', async () => {
+  const h=peer('host');h.video.duration=125;h.sync.skip(10);await h.sync.serial;
+  assert.equal(h.messages.at(-1).time,125);assert.equal(h.messages.at(-1).paused,true);
+  h.sync.seek(-10);await h.sync.serial;assert.equal(h.messages.at(-1).time,0);
+});
+test('failed writes wait for the retry tick rather than looping immediately', async () => {
+  const h=peer('host');let attempts=0;
+  h.sync.error=()=>{};h.sync.send=async()=>{attempts++;throw Error('offline');};
+  h.sync.toggle();await h.sync.serial.catch(()=>{});
+  await Promise.resolve();
+  assert.equal(attempts,1);assert.equal(h.sync.queued,0);
+  h.sync.tick();await h.sync.serial.catch(()=>{});assert.equal(attempts,2);
+});
+
+test('host sends an unbuffered forward seek without waiting for seeked/canplay', async () => {
+  const h=peer('host');h.sync.desiredPaused=false;
+  h.video.readyState=1;h.video.seeking=true;
+  h.sync.seek(900);await h.sync.serial;
+  assert.equal(h.messages.length,1);assert.equal(h.messages[0].time,900);
+  assert.equal(h.messages[0].paused,false);assert.equal(h.video.paused,true);
+});
+test('guest retries playback interrupted by a seek and releases the host only once playing', async () => {
+  const h=peer('host'),g=peer('guest');g.sync.mediaKey='episode-2';
+  let attempts=0;g.video.play=()=>{
+    if (++attempts===1) return Promise.reject(Object.assign(new Error('seek interrupted play'),{name:'AbortError'}));
+    g.video.paused=false;return Promise.resolve();
+  };
+  h.sync.request(false,900,h.sync.media());await h.sync.serial;
+  await g.sync.receive(state(h.messages[0]));await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(g.video.paused,true);assert.equal(g.messages.length,0);
+  g.sync.tick();await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(attempts,2);assert.equal(g.video.currentTime,900);
+  g.sync.event('playing');await g.sync.serial;
+  await h.sync.receive(state(g.messages.at(-1)));
+  assert.equal(h.sync.pending,null);assert.equal(h.video.paused,false);
+});
+
+test('join overwriting a pending command immediately republishes the same target', async () => {
+  const h=peer('host');h.sync.request(false,900);await h.sync.serial;
+  await h.sync.receive(state({kind:'join',token:'guest-start'}));await h.sync.serial;
+  assert.equal(h.messages.length,2);assert.equal(h.messages[1].id,h.messages[0].id);
+  assert.equal(h.messages[1].time,900);assert.equal(h.sync.lastJoin,'guest-start');
+});
+
+test('repeated guest seek republishes its command without changing the sequence', async () => {
+ const h=peer('host');const intent={kind:'intent',token:'seek-new',paused:false,time:900,media:{key:'episode-2'}};
+ await h.sync.receive(state(intent));await h.sync.serial;
+ await h.sync.receive(state(intent));await h.sync.serial;
+ assert.equal(h.sync.sequence,1);assert.equal(h.messages.length,2);
+ assert.equal(h.messages[0].id,h.messages[1].id);assert.equal(h.messages[1].time,900);
 });

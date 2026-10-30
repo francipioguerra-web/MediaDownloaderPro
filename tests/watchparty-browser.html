@@ -12,7 +12,7 @@ const media=()=>({key:'fixture',item:{id:'fixture'},url:'/tone.wav'});
 function report(){ result.textContent=JSON.stringify({stage,commands,unexpectedSeeks,hostTime:host.currentTime,guestTime:guest.currentTime,hostPaused:host.paused,guestPaused:guest.paused,errors,logs},null,2); }
 const h=new WatchPartySync({role:'host',video:host,send,media,wait(){},error:e=>errors.push(String(e))});
 const request=h.request.bind(h); h.request=(...args)=>{commands++;request(...args);};
-const g=new WatchPartySync({role:'guest',video:guest,send,wait(){},error:e=>errors.push(String(e)),load:async(_media,time)=>{
+const g=new WatchPartySync({role:'guest',video:guest,send,media,wait(){},error:e=>errors.push(String(e)),load:async(_media,time)=>{
   g.loading=true; await delay(1500); guest.src='/tone.wav';
   guest.addEventListener('loadeddata',()=>{g.loading=false;g.positionGuest();},{once:true});guest.load();
 }});
@@ -32,13 +32,34 @@ document.querySelector('#start').onclick=async()=>{
   await until(()=>!host.paused&&!guest.paused&&!h.pending);await delay(500);
   stage='steady';const initialCommands=commands;await delay(6000);logs.push('6 secondi di playback continuo');
   if(commands!==initialCommands||unexpectedSeeks!==0)throw Error('Loop durante playback');
+  stage='host forward while playing';h.seek(12);
+  await until(()=>!h.pending&&!host.paused&&!guest.paused&&!host.seeking&&!guest.seeking&&guest.currentTime>=12);
+  await delay(300);
+  stage='guest forward while playing';g.skip(5);
+  await until(()=>!h.pending&&!g.intent&&!host.paused&&!guest.paused&&!host.seeking&&!guest.seeking&&host.currentTime>=17);
+  await delay(300);
   stage='pause';h.request(true,host.currentTime,media());await until(()=>!h.pending&&host.paused&&guest.paused);
   stage='paused seek';host.currentTime=15;await until(()=>h.pending);await until(()=>!h.pending&&Math.abs(guest.currentTime-15)<.3);
   if(!guest.paused)throw Error('Seek in pausa ha avviato il guest');logs.push('Pausa e salto in pausa verificati');
   stage='resume';h.request(false,host.currentTime,media());await until(()=>!h.pending&&!host.paused&&!guest.paused);await delay(500);
   stage='steady';const count=commands;await delay(6000);if(commands!==count||unexpectedSeeks!==0)throw Error('Loop dopo ripresa');
   if(Math.abs(host.currentTime-guest.currentTime)>1)throw Error('Drift superiore a 1 secondo');
-  logs.push('Ripresa stabile verificata');stage='PASS';
+  stage='guest pause';guest.pause();await until(()=>h.video.paused && !h.pending && !g.intent);
+  stage='guest seek';guest.currentTime=30;await until(()=>!g.intent && !h.pending && Math.abs(host.currentTime-30)<.3);
+  if(!host.paused || !guest.paused)throw Error('Seek guest in pausa ha avviato il video');
+  stage='guest resume';await guest.play();await until(()=>!h.pending&&!g.intent&&!host.paused&&!guest.paused&&!host.seeking&&host.readyState>=3);await delay(500);
+  stage='steady';const guestCount=commands;await delay(5000);
+  if(commands!==guestCount||unexpectedSeeks!==0)throw Error('Loop dopo comando guest');
+  stage='rapid host controls';h.toggle();h.toggle();h.toggle();
+  await until(()=>!h.pending&&host.paused&&guest.paused);
+  h.seek(20);h.skip(10);h.skip(-10);
+  await until(()=>!h.pending&&Math.abs(guest.currentTime-20)<.3);
+  if(!guest.paused)throw Error('Comandi rapidi hanno ripreso il video');
+  stage='rapid guest controls';g.toggle();g.toggle();g.seek(35);g.skip(10);g.skip(-10);
+  await until(()=>!h.pending&&!g.intent&&Math.abs(host.currentTime-35)<.3);
+  if(!host.paused||!guest.paused)throw Error('Stato pausa perso dopo comandi guest');
+  g.toggle();await until(()=>!h.pending&&!g.intent&&!host.paused&&!guest.paused);
+  logs.push('Ripresa stabile, comandi guest e pressioni rapide verificati');stage='PASS';
  } catch(e){errors.push(String(e));stage='FAIL';}
  finally{clearInterval(poll);h.close();g.close();host.pause();guest.pause();report();}
 };

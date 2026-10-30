@@ -1,0 +1,10 @@
+.online-subs { border-top:1px solid #ffffff26; padding:12px 10px; min-width:260px; }
+.online-subs__header { display:flex; flex-direction:column; gap:8px; }
+.online-subs__header button, .online-subs__header select { box-sizing:border-box; width:100%; padding:10px; border:1px solid #ffffff30; border-radius:8px; background:#303039; color:#fff; font:inherit; font-size:13px; text-align:left; }
+.online-subs__header button { cursor:pointer; }
+.online-subs__header button:hover { background:#444450; }
+.online-subs__header button:disabled { opacity:.6; cursor:wait; }
+.online-subs__status { color:#bbb; margin:8px 0 0; font-size:12px; line-height:1.5; white-space:normal; }
+.online-subs__status:empty { display:none; }
+.online-subs__results { max-height:190px; overflow-y:auto; }
+.online-subs__results button { white-space:normal; overflow-wrap:anywhere; text-align:left; }

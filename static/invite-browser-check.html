@@ -1,0 +1,145 @@
+<!doctype html><meta charset="utf-8"><title>Verifica inviti WatchParty</title><button id="test">Verifica invito tecnico</button><pre id="result">Pronto: nessun profilo reale verrà coinvolto.</pre><script>
+    (function() {
+      const _origFetch = window.fetch;
+      window.fetch = function(url, options = {}) {
+        const requestUrl = new URL(url instanceof Request ? url.url : String(url), window.location.href);
+        const isNgrok = /(?:^|\.)ngrok(?:-free)?\.(?:app|dev|io)$/i.test(requestUrl.hostname);
+        // This header is only understood by ngrok. Adding it to Render calls
+        // triggers a CORS preflight that Render correctly refuses.
+        if (!isNgrok) return _origFetch.call(this, url, options);
+        const headers = new Headers(options.headers || (url instanceof Request ? url.headers : undefined));
+        headers.set('ngrok-skip-browser-warning', 'true');
+        return _origFetch.call(this, url, {...options, headers});
+      };
+    })();
+        const RENDER_DEFAULT_HUB = 'https://mediadownloaderpro-3q69.onrender.com';
+      function getWatchPartyHubBase() {
+        // Every participant uses the same authority, including on localhost.
+        return RENDER_DEFAULT_HUB;
+      }
+
+      async function wpRequest(path, options = {}) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 12000);
+        try {
+          const response = await fetch(`${getWatchPartyHubBase()}${path}`, {
+            ...options, cache: 'no-store', signal: controller.signal
+          });
+          const data = await response.json();
+          if (!response.ok || data.success === false) {
+            throw new Error(data.error || 'Server WatchParty non disponibile');
+          }
+          return data;
+        } finally { clearTimeout(timeout); }
+      }
+
+
+const result=document.querySelector('#result');
+const token='codex-browser-'+crypto.randomUUID();
+let currentActiveProfile={id:token+'-host',name:'Test host'},watchPartySession=null,watchPartyRole=null,watchPartyPlaybackStarted=false,watchPartyPendingSession=null,received=null;
+const guest={id:token+'-guest',name:'Test guest'};
+const watchPartyItem={id:'synthetic-check',name:'Verifica invito temporaneo',currentTime:120};
+const currentPartyStreamUrl='',playerModal=null,wpNotification=null;
+window._wpCurrentRoomCode=token;
+const messages=[];
+function showToast(message){messages.push(message);}
+function closeWatchPartyInvite(){}
+function activateWatchParty(){}
+async function playDirectly(){}
+function showWatchPartyNotification(session){received=session;watchPartyPendingSession=session;}
+      async function createWatchParty(guest) {
+        try {
+          const roomCode = window._wpCurrentRoomCode || (typeof WatchParty !== 'undefined' ? WatchParty.generateRoomId() : 'WP-' + Math.random().toString(36).substring(2, 8).toUpperCase());
+          const modeRadio = document.querySelector('input[name="wp-ctrl-mode"]:checked');
+          const ctrlMode = 'all';
+
+          const data = await wpRequest('/api/watchparty/create', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+              host_profile_id: currentActiveProfile.id,
+              guest_profile_id: guest ? guest.id : null,
+              guest_name: guest ? guest.name : undefined,
+              guest_avatar: guest ? guest.avatar : undefined,
+              item: watchPartyItem,
+              session_id: roomCode,
+              stream_url: currentPartyStreamUrl || undefined
+            })
+          });
+          closeWatchPartyInvite();
+          watchPartySession = data.session || { session_id: data.session_id || roomCode, item: watchPartyItem, status: 'waiting' };
+          watchPartySession.session_id = data.session_id || data.session?.session_id || roomCode;
+          watchPartyRole = 'host';
+
+          // Mostra subito il banner WatchParty e avvia il monitoraggio sessione per l'host
+          activateWatchParty(watchPartySession, 'host');
+          watchPartyPlaybackStarted = true;
+
+          // Inizializza Socket.IO (non bloccante)
+          if (typeof WatchParty !== 'undefined') {
+            try {
+              WatchParty.bindVideo(webVideo);
+              WatchParty.createRoom({
+                roomId: watchPartySession.session_id,
+                profile: currentActiveProfile,
+                item: watchPartyItem,
+                streamUrl: currentPartyStreamUrl,
+                controlMode: ctrlMode
+              }).catch(() => {});
+            } catch(e) {}
+          }
+
+          if (guest) showToast(`Invito inviato a ${guest.name} (Stanza: ${watchPartySession.session_id})`);
+          else showToast(`Stanza WatchParty creata: ${watchPartySession.session_id}`);
+
+          // L'host apre SUBITO il player ed estrae il video senza attendere l'ospite
+          const isAlreadyPlayingSame = playerModal && !playerModal.classList.contains('hidden') && webVideo && currentActiveItem && wpMediaKey(currentActiveItem) === wpMediaKey(watchPartyItem);
+          if (!isAlreadyPlayingSame) {
+            const initialTime = Number(watchPartyItem?.currentTime) || Number(watchPartyItem?.current_time) || 0;
+            playDirectly(watchPartyItem, initialTime).catch(err => console.warn('[WatchParty] Host playback start warning:', err));
+          } else {
+            wpConfirmedSync.loading = false;
+            wpConfirmedSync.request(false, webVideo.currentTime, wpCurrentMedia());
+          }
+        } catch (err) { showToast(err.message); }
+      }
+
+      async function pollWatchPartyInvites() {
+        const profId = currentActiveProfile ? currentActiveProfile.id : (localStorage.getItem('sc_last_active_profile_id') || null);
+        if (!profId || watchPartySession) return;
+        try {
+          const data = await wpRequest(`/api/watchparty/pending?profile_id=${encodeURIComponent(profId)}`);
+          if (data && Array.isArray(data.sessions) && data.sessions.length > 0) {
+            const firstPending = data.sessions[0];
+            if (!watchPartyPendingSession || watchPartyPendingSession.session_id !== firstPending.session_id) {
+              console.log('[WatchParty] Nuovo invito in arrivo per ' + profId + ':', firstPending);
+              showWatchPartyNotification(firstPending);
+            }
+          } else {
+            if (watchPartyPendingSession && wpNotification && wpNotification.classList.contains('visible')) {
+              wpNotification.classList.remove('visible');
+              watchPartyPendingSession = null;
+            }
+          }
+        } catch(e) {
+          console.warn('[WatchParty] Errore verifica inviti:', e);
+        }
+      }
+
+
+document.querySelector('#test').onclick=async()=>{
+ document.querySelector('#test').disabled=true;let room;
+ try{
+  await createWatchParty(guest);
+  if(!watchPartySession)throw Error(messages.join('; '));
+  room=watchPartySession.session_id;
+  result.textContent='Invito creato dal pulsante host. Verifica ricezione guest…';
+  currentActiveProfile=guest;watchPartySession=null;
+  await pollWatchPartyInvites();
+  if(!received||received.session_id!==room)throw Error('Invito non ricevuto');
+  const accepted=await wpRequest('/api/watchparty/accept',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:room,guest_profile_id:guest.id})});
+  if(accepted.session.status!=='active')throw Error('Accettazione fallita');
+  result.textContent='PASS: clic Invita → sessione Render → notifica guest → accettazione. Nessun utente reale coinvolto.';
+ }catch(e){result.textContent='FAIL: '+e.message;}
+ finally{if(room)await wpRequest('/api/watchparty/end',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:room})});}
+};
+</script>

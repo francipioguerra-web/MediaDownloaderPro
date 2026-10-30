@@ -11,6 +11,11 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor
 import io
 import random
+from src.guardoseries_stream import DirectStreams
+from src.guardoseries import Guardaserie
+from src.home_catalog_cache import HomeCatalogCache
+from src.catalog_request_cache import CatalogRequestCache
+from src.home_categories import GENRES, canonical_genre, home_rows, parse_archive_state
 import requests
 try:
     from curl_cffi import requests as cffi_requests, curl
@@ -38,6 +43,12 @@ except (ImportError, Exception):
     cffi_requests = CompatRequestsModule()
 
 from flask import Flask, render_template, request, jsonify, Response, redirect, make_response
+from src.media_network import media_get
+from src.catalog_html import match_title
+from src.sc_stream_tokens import StreamTokens
+from src.vidxgo import parse_player_source, parse_player_subtitles, media_headers, manifest_metadata
+PRIMARY_DOMAIN = 'https://streaming-community.biz' 
+from src.catalog_html import parse_home_catalog, parse_archive_catalog, parse_title_details, source_origin, normalize_archive_items
 
 # -------------------------------------------------------------
 # ENVIRONMENT & PATH FIX FOR FFMPEG ON MACOS
@@ -65,12 +76,15 @@ def get_ffmpeg_executable():
 # -------------------------------------------------------------
 # FLASK APP SETUP
 # -------------------------------------------------------------
+_base_dir = os.path.dirname(os.path.abspath(__file__))
 if getattr(sys, 'frozen', False):
     template_folder = os.path.join(sys._MEIPASS, 'templates')
     static_folder = os.path.join(sys._MEIPASS, 'static')
     app = Flask(__name__, template_folder=template_folder, static_folder=static_folder)
 else:
-    app = Flask(__name__, template_folder='templates', static_folder='static')
+    template_folder = os.path.join(_base_dir, 'templates')
+    static_folder = os.path.join(_base_dir, 'static')
+    app = Flask(__name__, template_folder=template_folder, static_folder=static_folder)
 
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 app.jinja_env.auto_reload = True
@@ -106,7 +120,7 @@ def add_cors_headers(response):
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With'
     return response
 
-DOWNLOADS_DIR = os.path.expanduser("~/Downloads")
+DOWNLOADS_DIR = os.environ.get("DOWNLOADS_DIR") or (os.path.join(os.environ["DATA_DIR"], "downloads") if os.environ.get("DATA_DIR") else os.path.expanduser("~/Downloads"))
 os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 
 if getattr(sys, 'frozen', False):
@@ -114,6 +128,20 @@ if getattr(sys, 'frozen', False):
 else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SEED_DIR = os.path.join(BASE_DIR, "user_data_seed")
+RUNTIME_DATA_DIR = os.environ.get('DATA_DIR') or os.path.join(BASE_DIR, 'data')
+os.makedirs(RUNTIME_DATA_DIR, exist_ok=True)
+TMDB_API_KEY = os.environ.get('TMDB_API_KEY', '')
+if not TMDB_API_KEY:
+    try:
+        with open(os.path.join(BASE_DIR, '.tmdb_api_key')) as local_key:
+            TMDB_API_KEY = local_key.read().strip()
+    except OSError:
+        pass
+
+
+def user_data_file(filename, legacy_path):
+    return os.path.join(RUNTIME_DATA_DIR, filename) if os.environ.get('DATA_DIR') else os.path.expanduser(legacy_path)
+
 
 def ensure_seed_data(target_file, seed_filename):
     try:
@@ -133,20 +161,37 @@ def ensure_seed_data(target_file, seed_filename):
 class Engine:
     def __init__(self):
         self.session = cffi_requests.Session(impersonate='chrome120')
-        self.candidate_sc_domains = [
-            "https://streamingcommunityz.style",
-            "https://streamingcommunityz.miami",
-            "https://streamingcommunityz.luxe",
-            "https://streamingcommunityz.boats",
-            "https://streamingcommunityz.hair",
-            "https://streamingcommunityz.bio",
-            "https://streamingcommunity.computer"
-        ]
-        self._cached_active_domain = None
+        self.candidate_sc_domains = [PRIMARY_DOMAIN]
+        self.primary_vixcloud = False
+        self.sc_stream_tokens = StreamTokens(self.refresh_sc_stream_source)
+        self._primary_search_cache = {}
+        self.guardoserie_streams = DirectStreams(self.session)
+        self._catalog_requests = CatalogRequestCache()
+        self._cached_active_domain = PRIMARY_DOMAIN
+        self._domain_verified_at = 0
+        self._domain_attempted_at = 0
+        self._domain_lock = threading.Lock()
+        self._modern_catalog = True
+        self._modern_titles = {}
+        self._modern_details = {}
+        self._home_genre_cache = {}
+        self._home_genre_lock = threading.RLock()
+        self._home_genre_file = os.path.join(RUNTIME_DATA_DIR, 'home_genres_cache.json')
+        try:
+            with open(self._home_genre_file) as source:self._home_genre_cache=json.load(source)
+        except (OSError,ValueError):pass
+        self._modern_streams = {}
+        self._modern_stream_lock = threading.RLock()
+        self._guardaserie_streams = {}
+        self._guardaserie_stream_lock = threading.RLock()
+        self.home_catalog_cache = HomeCatalogCache(os.path.join(RUNTIME_DATA_DIR, 'home_catalog_cache.json'))
+        if self.home_catalog_cache.value:
+            self._cached_active_domain = self.home_catalog_cache.value.get('domain')
+            self._modern_catalog = self.home_catalog_cache.value.get('source_format') == 'html'
         self.downloads = {}
         self.processes = {}
         self.canceled_downloads = set()
-        self.dates_cache_file = ensure_seed_data(os.path.expanduser('~/.streamingcommunity_dates_cache.json'), 'dates_cache.json')
+        self.dates_cache_file = os.path.join(RUNTIME_DATA_DIR, 'dates_cache.json')
         self.dates_cache = self._load_dates_cache()
         self._cached_archive_genres = []
         self._cached_archive_countries = []
@@ -214,58 +259,26 @@ class Engine:
             c.close()
             
             eff_str = eff.decode() if isinstance(eff, bytes) else eff
-            is_valid = st == 200 and ('streamingcommunity' in body.lower() or 'inertia' in body.lower() or 'data-page' in body.lower())
+            is_valid = st == 200 and (re.search(r'streaming[- ]?community', body, re.I) or 'inertia' in body.lower() or 'data-page' in body.lower())
             if is_valid:
+                from bs4 import BeautifulSoup
                 p_eff = urllib.parse.urlparse(eff_str)
-                return f"{p_eff.scheme}://{p_eff.netloc}"
+                return source_origin(BeautifulSoup(body, 'html.parser'), f"{p_eff.scheme}://{p_eff.netloc}")
         except Exception:
             pass
         return None
 
     def safe_get(self, url, headers=None, timeout=6):
+        # DNS fallback is useful only for a DNS failure. Retrying every timeout
+        # through two resolvers previously multiplied a single catalog wait.
         try:
-            r = self.session.get(url, headers=headers, timeout=timeout)
-            if r.status_code in (200, 301, 302, 304):
-                return r
+            return media_get(self.session, url, headers=headers, timeout=timeout)
         except Exception:
-            pass
-            
-        try:
-            parsed = urllib.parse.urlparse(url)
-            hostname = parsed.netloc
-            ips = self._resolve_doh_ips(hostname)
-            
-            c = curl.Curl()
-            c.impersonate('chrome120')
-            c.setopt(curl.CurlOpt.URL, url)
-            if ips:
-                c.setopt(curl.CurlOpt.RESOLVE, [f'{hostname}:443:{ip}' for ip in ips] + [f'{hostname}:80:{ip}' for ip in ips])
-            c.setopt(curl.CurlOpt.FOLLOWLOCATION, 1)
-            c.setopt(curl.CurlOpt.ACCEPT_ENCODING, b'')
-            c.setopt(curl.CurlOpt.TIMEOUT, timeout)
-            if headers:
-                hdrs = [f'{k}: {v}'.encode() for k, v in headers.items()]
-                c.setopt(curl.CurlOpt.HTTPHEADER, hdrs)
-                
-            buf = io.BytesIO()
-            c.setopt(curl.CurlOpt.WRITEDATA, buf)
-            c.perform()
-            st = c.getinfo(curl.CurlInfo.RESPONSE_CODE)
-            body = buf.getvalue().decode('utf-8', errors='ignore')
-            c.close()
-            
-            class DummyResponse:
-                def __init__(self, status_code, text):
-                    self.status_code = status_code
-                    self.text = text
-                    
-            return DummyResponse(st, body)
-        except Exception as e:
-            class DummyErrorResponse:
-                def __init__(self, err):
-                    self.status_code = 500
-                    self.text = str(err)
-            return DummyErrorResponse(e)
+            class UnavailableResponse:
+                status_code = 503
+                text = ''
+                def json(self): return {}
+            return UnavailableResponse()
 
     def perform_online_domain_search(self):
         discovered = []
@@ -278,6 +291,7 @@ class Engine:
             pass
 
         entrypoints = [
+            "https://streaming-community.coffee",
             "https://streamingcommunityz.luxe",
             "https://streaming-communityz.art",
             "https://streamingcommunityz.art",
@@ -312,28 +326,33 @@ class Engine:
 
         return None
 
-    def get_active_sc_domain(self, target_url=None):
-        if target_url and target_url.startswith('http'):
-            v = self._verify_single_url(target_url)
-            if v:
-                self._cached_active_domain = v
-                return v
-
-        if self._cached_active_domain:
+    def get_active_sc_domain(self, target_url=None, refresh=False):
+        # Normal requests keep using the current authority. Only the idle
+        # refresh revalidates it; saved links must not restore an old domain.
+        if self._cached_active_domain and not refresh:
             return self._cached_active_domain
-
-        for d in self.candidate_sc_domains:
-            v = self._verify_single_url(d)
-            if v:
-                self._cached_active_domain = v
-                return v
-
-        online_domain = self.perform_online_domain_search()
-        if online_domain:
-            self._cached_active_domain = online_domain
-            return online_domain
-
-        return self.candidate_sc_domains[0]
+        now = time.monotonic()
+        if refresh and self._cached_active_domain:
+            if now - self._domain_verified_at < 300 or now - self._domain_attempted_at < 60:
+                return self._cached_active_domain
+        if not self._domain_lock.acquire(blocking=False):
+            return self._cached_active_domain or self.candidate_sc_domains[0]
+        try:
+            self._domain_attempted_at = now
+            candidates = [self._cached_active_domain] if self._cached_active_domain else []
+            candidates.extend(self.candidate_sc_domains)
+            if target_url and target_url.startswith(('https://', 'http://')):
+                candidates.append(target_url)
+            for candidate in dict.fromkeys(c for c in candidates if c):
+                verified = self._verify_single_url(candidate)
+                if verified:
+                    self._cached_active_domain = verified
+                    self._domain_verified_at = time.monotonic()
+                    return verified
+            # A transient outage must not replace the last working domain.
+            return self._cached_active_domain or self.candidate_sc_domains[0]
+        finally:
+            self._domain_lock.release()
 
     def extract_sc_images(self, item, cdn_url):
         poster = None
@@ -346,7 +365,10 @@ class Engine:
                 t = img.get('type')
                 fn = img.get('filename')
                 if fn:
-                    u = f"{cdn_url}/images/{fn}"
+                    original = img.get('original_url_field') or img.get('original_url')
+                    u = original if isinstance(original, str) and original.startswith('https://') else f"{cdn_url}/images/{fn}"
+                    if 'image.tmdb.org/t/p/' in u:
+                        u = re.sub(r'/t/p/[^/]+/', '/t/p/original/', u)
                     if t == 'poster' and not poster:
                         poster = u
                     elif t == 'background' and not background:
@@ -366,15 +388,70 @@ class Engine:
             c = item.get('cover')
             if c: cover = c if c.startswith('http') else f"{cdn_url}/images/{c}"
             
-        best_cover = background or cover or cover_mobile or poster
-        best_poster = poster or cover or background
+        def _to_tmdb(img_u):
+            if not img_u or not isinstance(img_u, str): return img_u
+            if '/t/p/' in img_u:
+                m = re.search(r'/t/p/([^/]+)/(.+)$', img_u)
+                if m: return f"https://image.tmdb.org/t/p/{m.group(1)}/{m.group(2)}"
+            return img_u
+        best_cover = _to_tmdb(background or cover or cover_mobile or poster)
+        best_poster = _to_tmdb(poster or cover or background)
         return best_poster, best_cover
 
+    @staticmethod
+    def _sanitize_media_item(item):
+        if not isinstance(item, dict): return item
+        for k in ('poster', 'cover', 'backdrop', 'image'):
+            val = item.get(k)
+            if val and isinstance(val, str) and '/t/p/' in val:
+                m = re.search(r'/t/p/([^/]+)/(.+)$', val)
+                if m:
+                    item[k] = f"https://image.tmdb.org/t/p/{m.group(1)}/{m.group(2)}"
+        return item
+
     def get_home_catalog(self):
+        catalog = self.home_catalog_cache.get(self._fetch_home_catalog)
+        catalog = home_rows(catalog)
+        # Publish already loaded genres with the home itself. Reopening Home
+        # must not turn usable carousels back into empty loading rows.
+        for row in catalog.get('sliders', []):
+            cached = self._home_genre_cache.get(row.get('genre'))
+            if cached and cached[1].get('titles'):
+                row['titles'] = cached[1]['titles'][:20]
+            for item in row.get('titles', []):
+                self._sanitize_media_item(item)
+        if catalog.get('featured'):
+            self._sanitize_media_item(catalog['featured'])
+        if catalog.get('source_format') == 'html':
+            self._modern_catalog = True
+            for row in catalog.get('sliders', []):
+                for item in row.get('titles', []):
+                    self._modern_titles[str(item['id'])] = item
+        return catalog
+
+    def _fetch_home_catalog(self):
         try:
-            active_domain = self.get_active_sc_domain()
+            catalog = None
+            active_domain = self._cached_active_domain or (self.home_catalog_cache.value or {}).get('domain') or self.candidate_sc_domains[0]
             cdn_url = f"https://cdn.{active_domain.replace('https://', '')}"
-            r_home = self.safe_get(f"{active_domain}/it", timeout=6)
+            r_home = self.safe_get(f"{active_domain}/", timeout=6)
+            # Newer domains serve the catalog at / using rendered HTML.
+            if r_home.status_code != 200 or not re.search(r"data-page=[\"']", r_home.text):
+                root_home = r_home
+                if root_home.status_code == 200:
+                    catalog = parse_home_catalog(root_home.text, active_domain)
+                    if catalog:
+                        self._modern_catalog = True
+                        self._cached_active_domain = active_domain
+                        self.home_catalog_cache.publish(catalog)
+                        catalog['sliders'] = [r for r in catalog['sliders'] if not r.get('category_path')]
+                        for row in catalog['sliders']:
+                            for item in row['titles']:
+                                self._modern_titles[str(item['id'])] = item
+                        return catalog
+                    r_home = root_home
+                if not self.home_catalog_cache.usable(catalog):
+                    r_home = self.safe_get(f"{active_domain}/it", timeout=6)
             if r_home and r_home.status_code == 200:
                 match = re.search(r'data-page=\"(.*?)\"', r_home.text) or re.search(r"data-page='(.*?)'", r_home.text)
                 if match:
@@ -409,6 +486,7 @@ class Engine:
                             "backdrop": cover_url or poster_url,
                             "cover": cover_url or poster_url,
                             "plot": t.get('plot') or 'Nessuna trama disponibile.',
+                            "source_format": "inertia", "source": "StreamingCommunity",
                             "watch_url": f"{active_domain}/it/watch/{tid}"
                         }
 
@@ -426,52 +504,19 @@ class Engine:
                     if props.get('featured'):
                         clean_featured = parse_t(props['featured'])
 
-                    # Resolve debut release dates concurrently for featured and top titles
-                    try:
-                        all_items = []
-                        if clean_featured:
-                            all_items.append(clean_featured)
-                        for sl in clean_sliders:
-                            for it in sl.get('titles', []):
-                                all_items.append(it)
+                    if not clean_featured and props.get('title'):
+                        feature = dict(props['title'])
+                        known = next((title for slider in raw_sliders for title in slider.get('titles', [])
+                                      if str(title.get('id')) == str(feature.get('id'))), {})
+                        feature['type'] = feature.get('type') or known.get('type') or 'movie'
+                        clean_featured = parse_t(feature)
+                    self._modern_catalog = False
+                    catalog = {"success": True, "domain": active_domain, "source_format": "inertia",
+                               "featured": clean_featured or parse_t(props.get('title')),
+                               "genres": props.get('genres') or [], "sliders": clean_sliders}
+                    self.home_catalog_cache.publish(catalog)
+                    return catalog
 
-                        uncached = [it for it in all_items if str(it['id']) not in self.dates_cache][:30]
-                        if uncached:
-                            def _fetch_item_rel(item):
-                                try:
-                                    det = self.get_title_details(item['id'], item.get('slug', ''))
-                                    if isinstance(det, dict) and det.get('release_date'):
-                                        rd = str(det['release_date']).strip()
-                                        if rd:
-                                            return str(item['id']), rd
-                                except Exception:
-                                    pass
-                                return str(item['id']), None
-
-                            with ThreadPoolExecutor(max_workers=8) as executor:
-                                results = dict(executor.map(_fetch_item_rel, uncached))
-
-                            updated_any = False
-                            for str_id, rd in results.items():
-                                if rd:
-                                    self.dates_cache[str_id] = rd
-                                    updated_any = True
-                            if updated_any:
-                                self._save_dates_cache()
-                                for it in all_items:
-                                    str_id = str(it['id'])
-                                    if str_id in self.dates_cache:
-                                        it['release_date'] = self.dates_cache[str_id]
-                    except Exception as ex_pool:
-                        print("Background date enrichment notice:", ex_pool)
-
-                    return {
-                        "success": True,
-                        "domain": active_domain,
-                        "featured": clean_featured,
-                        "genres": props.get('genres') or [],
-                        "sliders": clean_sliders
-                    }
         except Exception as ex:
             print("Home catalog parse error:", ex)
         return {"success": False, "domain": self.candidate_sc_domains[0], "sliders": []}
@@ -557,6 +602,28 @@ class Engine:
         except Exception as ex:
             return {"success": False, "error": str(ex)}
 
+    def resolve_primary_item(self, item):
+        name = str(item.get('name') or item.get('title') or '').strip()[:200]
+        match = match_title(item, self.search_streamingcommunity(name)) if name else None
+        if not match:
+            return {'success': False, 'error': 'Titolo non identificato nel catalogo StreamingCommunity ripristinato. Cercalo nella ricerca.'}
+        target = {**item, **match, 'provider': 'streamingcommunity', 'source': 'StreamingCommunity',
+                  'source_format': 'html', 'seasons': [], 'title_url': '', 'external_url': '',
+                  'current_watch_url': '', 'current_episode_id': None}
+        for field in ('series_id', 'titleId'):
+            if field in target: target[field] = match['id']
+        number = item.get('current_episode_number')
+        if number and match.get('type') == 'tv':
+            season = int(item.get('current_season_number') or 1)
+            episodes = self.get_season_episodes(match['id'], match.get('slug', ''), season).get('episodes', [])
+            selected = next((episode for episode in episodes if int(episode.get('number') or 0) == int(number)), None)
+            if not selected:
+                return {'success': False, 'error': 'Episodio non disponibile nel catalogo StreamingCommunity ripristinato.'}
+            target.update(current_episode_id=selected['id'], current_watch_url=selected['watch_url'],
+                          current_season_number=season, current_episode_number=int(number),
+                          current_ep_name=selected.get('name', ''), current_ep_title=selected.get('name', ''))
+        return {'success': True, 'item': target}
+
     def search_streamingcommunity(self, query):
         try:
             active_domain = self.get_active_sc_domain()
@@ -565,14 +632,24 @@ class Engine:
                 'X-Requested-With': 'XMLHttpRequest'
             }
 
-            r1 = self.session.get(f"{active_domain}/it/search", timeout=5)
+            r1 = self.safe_get(f"{active_domain}/it/search", timeout=5)
+            if r1.status_code != 200 or not re.search(r"data-page=[\"']", r1.text):
+                archive_url = f"{active_domain}/archivio?search={urllib.parse.quote(query, safe='')}"
+                archive = self.safe_get(archive_url, timeout=8)
+                if archive.status_code == 200:
+                    results = parse_archive_catalog(archive.text, active_domain)
+                    if results is not None:
+                        self._modern_catalog = True
+                        for item in results:
+                            self._modern_titles[str(item['id'])] = item
+                        return results
             match = re.search(r'data-page=\"(.*?)\"', r1.text) or re.search(r"data-page='(.*?)'", r1.text)
             if match:
                 version = json.loads(html_module.unescape(match.group(1))).get('version')
                 if version:
                     headers['X-Inertia-Version'] = version
 
-            r2 = self.session.get(f"{active_domain}/it/search?q={urllib.parse.quote(query)}", headers=headers, timeout=6)
+            r2 = self.safe_get(f"{active_domain}/it/search?q={urllib.parse.quote(query)}", headers=headers, timeout=6)
             if r2.status_code == 200:
                 data = r2.json()
                 props = data.get('props') or {}
@@ -584,7 +661,7 @@ class Engine:
                         slug = t.get('slug') or t.get('name', '').lower().replace(' ', '-').replace(':', '')
                         poster_url, cover_url = self.extract_sc_images(t, cdn_url)
                         results.append({
-                            "id": t.get('id'),
+                            "id": t.get('id'), "tmdb_id": t.get('tmdb_id'),
                             "name": t.get('name'),
                             "type": t.get('type') or 'movie',
                             "slug": slug,
@@ -595,6 +672,7 @@ class Engine:
                             "source": "StreamingCommunity",
                             "lang": "ita",
                             "flag": "🇮🇹",
+                            "source_format": "html",
                             "watch_url": f"{active_domain}/it/watch/{t.get('id')}"
                         })
                 return results
@@ -602,77 +680,7 @@ class Engine:
             print("SC search error:", ex)
         return []
 
-    def search_animeworld(self, query):
-        try:
-            url = f"https://www.animeworld.ac/filter?keyword={urllib.parse.quote(query)}"
-            r = self.session.get(url, timeout=5)
-            if r.status_code == 200:
-                from bs4 import BeautifulSoup
-                soup = BeautifulSoup(r.text, 'html.parser')
-                results = []
-                for el in soup.select('.film-list .item, .items .item, .poster')[:12]:
-                    a = el.select_one('a.name, a.poster, a')
-                    img = el.select_one('img')
-                    if a and img:
-                        title = a.get_text(strip=True) or a.get('title') or img.get('alt')
-                        href = a.get('href') or ''
-                        src = img.get('src') or img.get('data-src') or ''
-                        if title and href:
-                            slug_id = href.strip('/').split('/')[-1]
-                            results.append({
-                                "id": f"aw-{slug_id}",
-                                "name": title,
-                                "type": "tv",
-                                "slug": slug_id,
-                                "release_date": "Anime ITA",
-                                "poster": src if src.startswith('http') else f"https://www.animeworld.ac{src}",
-                                "cover": src if src.startswith('http') else f"https://www.animeworld.ac{src}",
-                                "plot": "Anime doppiato o sottotitolato in italiano disponibile su AnimeWorld.",
-                                "source": "AnimeWorld",
-                                "lang": "ita",
-                                "flag": "🇮🇹",
-                                "watch_url": f"https://www.animeworld.ac{href}"
-                            })
-                return results
-        except Exception as ex:
-            print("AW search error:", ex)
-        return []
 
-    def search_international_tmdb(self, query):
-        try:
-            url = f"https://api.themoviedb.org/3/search/multi?api_key=4e44d9029b1270a757cddc766a1bcb63&query={urllib.parse.quote(query)}&language=en-US"
-            r = self.session.get(url, timeout=5)
-            if r.status_code == 200:
-                raw_results = r.json().get('results', [])
-                results = []
-                for t in raw_results:
-                    m_type = t.get('media_type')
-                    if m_type not in ['movie', 'tv']: continue
-                    title = t.get('title') or t.get('name')
-                    poster_path = t.get('poster_path')
-                    poster_url = f"https://image.tmdb.org/t/p/w342{poster_path}" if poster_path else ""
-                    backdrop_path = t.get('backdrop_path')
-                    cover_url = f"https://image.tmdb.org/t/p/original{backdrop_path}" if backdrop_path else poster_url
-                    t_id = t.get('id')
-                    embed_url = f"https://vidsrc.xyz/embed/movie/{t_id}" if m_type == 'movie' else f"https://vidsrc.xyz/embed/tv/{t_id}"
-                    results.append({
-                        "id": f"tmdb-{t_id}",
-                        "name": title,
-                        "type": m_type,
-                        "slug": str(t_id),
-                        "release_date": (t.get('release_date') or t.get('first_air_date') or '')[:4],
-                        "poster": poster_url,
-                        "cover": cover_url,
-                        "plot": t.get('overview', ''),
-                        "source": "LookMovie / VidSrc (ENG)",
-                        "lang": "eng",
-                        "flag": "🇬🇧",
-                        "watch_url": embed_url
-                    })
-                return results
-        except Exception as ex:
-            print("TMDB search error:", ex)
-        return []
 
     def get_genre_catalog(self, genre='', media_type='all', sort='popular', page=1):
         sort_key = 'views' if sort == 'popular' else (sort or 'release_date')
@@ -681,6 +689,86 @@ class Engine:
     def get_archive_catalog(self, media_type='all', genres=None, countries=None, year=None, score=None, views=None, service=None, quality=None, age=None, sort='release_date', search=None, page=1):
         try:
             active_domain = self.get_active_sc_domain()
+            if genres and str(page or 1)=='1' and sort=='updated_at' and media_type=='all' and not any((countries,year,score,views,service,quality,age,search)):
+                genre_names=genres if isinstance(genres,list) else str(genres).split(',')
+                cached=getattr(self,'_home_genre_cache',{}).get(canonical_genre(genre_names[0])) if len(genre_names)==1 else None
+                if cached and time.time()-cached[0]<300:return cached[1]
+            if self._modern_catalog:
+                # Current domains expose archive filters through the web API.
+                offset = (max(1, int(page or 1)) - 1) * 30
+                modern_params = {}
+                type_label = {'movie': 'Film', 'tv': 'Serie TV', 'series': 'Serie TV'}.get(str(media_type).lower())
+                if type_label:
+                    modern_params['tipo'] = type_label
+                if not type_label or offset:
+                    modern_params['offset'] = offset
+                modern_params['limit'] = 30
+                def filter_value(value):
+                    return ','.join(str(v) for v in value) if isinstance(value, list) else str(value or '')
+                for key, value in [('genere', genres), ('paese', countries), ('anno', year),
+                                   ('valutazione', score), ('views', views), ('servizio', service),
+                                   ('altro', [v for v in (quality, age) if v]), ('q', search)]:
+                    if value and filter_value(value) not in ('all', 'null'):
+                        modern_params[key] = filter_value(value)
+                sort_labels = {'moment':'Momento', 'popular': 'Views', 'score': 'Valutazione', 'name': 'Nome',
+                    'updated_at': 'Data di aggiornamento', 'created_at': 'Data di aggiunta'}
+                if sort in sort_labels:
+                    modern_params['sort'] = sort_labels[sort]
+                elif sort == 'upcoming':
+                    modern_params['sorting'] = 'soon'
+                elif offset:
+                    modern_params['sort'] = 'Data di aggiornamento'
+                if not offset:
+                    modern_params['count'] = 1
+                modern = self.safe_get(active_domain + '/api/v1/web/archive?' + urllib.parse.urlencode(modern_params), timeout=8)
+                if modern is not None and modern.status_code == 200:
+                    try:
+                        payload = json.loads(modern.text)
+                    except ValueError:
+                        payload = {}
+                    if payload.get('ok') and isinstance(payload.get('items'), list):
+                        results = normalize_archive_items(payload['items'], active_domain)
+                        self._modern_catalog = True
+                        self._modern_titles.update({str(item['id']): item for item in results})
+                        total = payload.get('count')
+                        if total is None:
+                            total = getattr(self, '_archive_total_count', offset + len(results) + (1 if len(results) == 30 else 0))
+                        if not type_label and not offset:
+                            self._archive_total_count = total
+                        return {'success': True, 'titles': results, 'totalCount': total,
+                                'page': max(1, int(page or 1)),
+                                'hasMore': offset + len(results) < total}
+                requested_genres = genres if isinstance(genres,list) else [genres] if genres else []
+                selected_genre = canonical_genre(requested_genres[0]) if len(requested_genres)==1 else None
+                if selected_genre:
+                    if offset:
+                        return {'success':False,'titles':[], 'error':'StreamingCommunity non rende al momento disponibili le pagine successive. Riprova tra poco.', 'hasMore':True}
+                    page_params={k:v for k,v in modern_params.items() if k not in ('offset','limit','count')}
+                    if 'q' in page_params:page_params['search']=page_params.pop('q')
+                    category_path='/' + selected_genre.lower()
+                    if type_label or any((countries,year,score,views,service,quality,age,search)) or sort not in ('updated_at','release_date'):
+                        category_path='/archivio?'+urllib.parse.urlencode(page_params)
+                    page_response = self.safe_get(active_domain + category_path, timeout=12)
+                    state = parse_archive_state(page_response.text, active_domain) if page_response.status_code==200 else None
+                    if state and any(canonical_genre(g)==selected_genre for g in state['filters'].get('Genere',[])):
+                        items=state['titles']
+                        self._modern_catalog=True
+                        self._modern_titles.update({str(i['id']):i for i in items})
+                        return {'success':True,'titles':items,'totalCount':state['totalCount'],'page':1,
+                                'hasMore':len(items)<state['totalCount'],'source_format':'html'}
+                    return {'success':False,'titles':[], 'error':'Categoria temporaneamente non disponibile su StreamingCommunity'}
+                if self._modern_catalog:
+                    if offset:
+                        return {'success':False,'titles':[], 'error':'Le pagine successive di StreamingCommunity sono temporaneamente indisponibili. Riprova tra poco.','hasMore':True}
+                    page_params={k:v for k,v in modern_params.items() if k not in ('offset','limit','count')}
+                    if 'q' in page_params:page_params['search']=page_params.pop('q')
+                    source_page=self.safe_get(active_domain+'/archivio?'+urllib.parse.urlencode(page_params),timeout=12)
+                    state=parse_archive_state(source_page.text,active_domain) if source_page.status_code==200 else None
+                    if state:
+                        self._modern_titles.update({str(i['id']):i for i in state['titles']})
+                        return {'success':True,'titles':state['titles'],'totalCount':state['totalCount'],'page':1,
+                                'hasMore':len(state['titles'])<state['totalCount']}
+                    return {'success':False,'titles':[],'error':'Archivio StreamingCommunity temporaneamente non disponibile'}
             cdn_url = f"https://cdn.{active_domain.replace('https://', '')}"
             query_parts = []
 
@@ -688,6 +776,13 @@ class Engine:
             if media_type and str(media_type).lower() not in ('all', '', 'null', 'tutto', 'tutti'):
                 query_parts.append(f"type={urllib.parse.quote(str(media_type).lower())}")
 
+            # The primary catalog uses numeric genre IDs, rather than the old labels.
+            if genres and not self._modern_catalog:
+                source_genres = (self.home_catalog_cache.value or {}).get('genres', []) or self.get_archive_metadata().get('genres', [])
+                by_name = {canonical_genre(g.get('name')): g['id'] for g in source_genres
+                           if canonical_genre(g.get('name'))}
+                values = genres if isinstance(genres, list) else str(genres).split(',')
+                genres = [by_name.get(canonical_genre(value), value) for value in values]
             # Genres (support list or comma-separated string)
             if genres:
                 if isinstance(genres, (str, int)):
@@ -738,6 +833,8 @@ class Engine:
 
             # Sort: StreamingCommunity uses 'sort' parameter
             sort_val = str(sort or 'release_date').strip()
+            if getattr(self, 'primary_vixcloud', False) and sort_val in ('updated_at','created_at','moment','popular','upcoming'):
+                sort_val = 'release_date'
             if sort_val and sort_val not in ('', 'default', 'null'):
                 query_parts.append(f"sort={urllib.parse.quote(sort_val)}")
 
@@ -812,7 +909,8 @@ class Engine:
                                 "backdrop": cover_url or poster_url,
                                 "cover": cover_url or poster_url,
                                 "plot": plot,
-                                "watch_url": f"{active_domain}/it/watch/{t.get('id')}",
+                                "source_format": "inertia", "source": "StreamingCommunity",
+                            "watch_url": f"{active_domain}/it/watch/{t.get('id')}",
                                 "age": t.get('age') or '',
                                 "sub_ita": t.get('sub_ita') or 0
                             })
@@ -825,9 +923,57 @@ class Engine:
                     }
         except Exception as ex:
             print("Archive catalog error:", ex)
+
+        # Fallback for modern Next.js routes (/film, /serie-tv, /archivio)
+        try:
+            active_domain = self.get_active_sc_domain()
+            target_path = '/film' if str(media_type).lower() in ('movie', 'film') else ('/serie-tv' if str(media_type).lower() in ('tv', 'series') else '/archivio')
+            r_modern = self.safe_get(f"{active_domain}{target_path}", timeout=8)
+            if r_modern and r_modern.status_code == 200:
+                modern_results = []
+                if target_path in ('/film', '/serie-tv'):
+                    cat = parse_home_catalog(r_modern.text, active_domain)
+                    if cat and cat.get('sliders'):
+                        for sl in cat['sliders']:
+                            for t in sl.get('titles', []):
+                                if not any(x['id'] == t['id'] for x in modern_results):
+                                    modern_results.append(t)
+                else:
+                    modern_results = parse_archive_catalog(r_modern.text, active_domain) or []
+                if modern_results:
+                    if hasattr(self, '_modern_titles'):
+                        self._modern_titles.update({str(item['id']): item for item in modern_results})
+                    return {
+                        "success": True,
+                        "titles": modern_results,
+                        "totalCount": len(modern_results),
+                        "page": 1,
+                        "hasMore": False
+                    }
+        except Exception as e_mod:
+            pass
+
+        # Fallback to in-memory cached modern titles
+        if hasattr(self, '_modern_titles') and self._modern_titles:
+            cached = list(self._modern_titles.values())
+            if str(media_type).lower() in ('movie', 'film'):
+                cached = [t for t in cached if t.get('type') == 'movie' or not t.get('type')]
+            elif str(media_type).lower() in ('tv', 'series'):
+                cached = [t for t in cached if t.get('type') == 'tv' or (t.get('seasons_count') or 0) > 0]
+            if cached:
+                return {
+                    "success": True,
+                    "titles": cached,
+                    "totalCount": len(cached),
+                    "page": 1,
+                    "hasMore": False
+                }
+
         return {"success": True, "titles": [], "totalCount": 0, "page": 1, "hasMore": False}
 
     def get_archive_metadata(self):
+        if self._modern_catalog:
+            return {'success':True,'genres':[{'id':g,'name':g} for g in GENRES], 'countries':self._cached_archive_countries}
         try:
             if hasattr(self, '_cached_archive_genres') and self._cached_archive_genres and hasattr(self, '_cached_archive_countries') and self._cached_archive_countries:
                 return {
@@ -853,7 +999,7 @@ class Engine:
                     }
         except Exception as ex:
             print("Archive metadata error:", ex)
-        return {"success": True, "genres": [], "countries": []}
+        return {"success": True, "genres": [{"id":g,"name":g} for g in GENRES], "countries": []}
 
     def search_catalog(self, query):
         try:
@@ -863,657 +1009,185 @@ class Engine:
             return []
 
     def search_catalog_multi(self, query):
-        try:
-            import concurrent.futures
-            active_domain = self.get_active_sc_domain()
+        def primary():
+            try:
+                return self.search_streamingcommunity(query) or []
+            except Exception:
+                return []
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            sc = pool.submit(primary)
+            gs = pool.submit(Guardaserie(self.session).search, query)
+            return sc.result() + gs.result()
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-                f_sc = executor.submit(self.search_streamingcommunity, query)
-                f_aw = executor.submit(self.search_animeworld, query)
-                f_tmdb = executor.submit(self.search_international_tmdb, query)
 
-                res_sc = f_sc.result() or []
-                res_aw = f_aw.result() or []
-                res_tmdb = f_tmdb.result() or []
-
-            def clean_t(txt):
-                return re.sub(r'[^a-zA-Z0-9]', '', str(txt).lower())
-
-            # Cross-reference matches between Italian & English sources
-            for sc_item in res_sc:
-                c_sc = clean_t(sc_item.get('name', ''))
-                sc_item['alt_sources'] = []
-                for tmdb_item in res_tmdb:
-                    c_tmdb = clean_t(tmdb_item.get('name', ''))
-                    if c_sc and (c_sc == c_tmdb or c_sc in c_tmdb or c_tmdb in c_sc):
-                        sc_item['alt_sources'].append({
-                            "id": tmdb_item.get('id'),
-                            "name": tmdb_item.get('name'),
-                            "type": tmdb_item.get('type'),
-                            "source": "LookMovie / VidSrc",
-                            "lang": "eng",
-                            "flag": "🇬🇧",
-                            "watch_url": tmdb_item.get('watch_url')
-                        })
-                        sc_item['has_multi_lang'] = True
-                        break
-
-            for tmdb_item in res_tmdb:
-                c_tmdb = clean_t(tmdb_item.get('name', ''))
-                tmdb_item['alt_sources'] = []
-                for sc_item in res_sc:
-                    c_sc = clean_t(sc_item.get('name', ''))
-                    if c_tmdb and (c_sc == c_tmdb or c_sc in c_tmdb or c_tmdb in c_sc):
-                        tmdb_item['alt_sources'].append({
-                            "id": sc_item.get('id'),
-                            "name": sc_item.get('name'),
-                            "type": sc_item.get('type'),
-                            "source": "StreamingCommunity",
-                            "lang": "ita",
-                            "flag": "🇮🇹",
-                            "watch_url": sc_item.get('watch_url')
-                        })
-                        tmdb_item['has_multi_lang'] = True
-                        break
-
-            # Prioritize StreamingCommunity, then AnimeWorld, then International
-            combined = res_sc + res_aw + res_tmdb
-            return {"domain": active_domain, "results": combined}
-        except Exception as ex:
-            return {"error": f"Errore ricerca: {str(ex)[:100]}"}
+    def get_modern_title_details(self, title_id, slug=""):
+        domain = self.get_active_sc_domain()
+        key = (domain, str(title_id))
+        cached = self._modern_details.get(key)
+        if cached and time.monotonic() - cached[0] < 300:
+            return cached[1]
+        known = self._modern_titles.get(str(title_id), {})
+        slug = slug or known.get('slug', '')
+        path = slug if slug.startswith(str(title_id) + '-') else f"{title_id}-{slug.removesuffix('-streaming')}-streaming"
+        url = known.get('title_url') or f"{domain}/titles/{path}"
+        for timeout in (8, 15):
+            page = self.safe_get(url, timeout=timeout)
+            details = parse_title_details(page.text, domain, title_id) if page.status_code == 200 else None
+            if details:
+                self._modern_details[key] = (time.monotonic(), details)
+                return details
+        # Previously loaded episode lists remain usable during a source outage.
+        return cached[1] if cached else {"error": "Dettagli del nuovo sito non disponibili"}
 
     def get_title_details(self, title_id, slug=""):
-        str_id = str(title_id)
-        if str_id.startswith('tmdb-'):
-            return self._get_tmdb_title_details(str_id.replace('tmdb-', ''))
-        elif str_id.startswith('aw-'):
-            return self._get_aw_title_details(str_id.replace('aw-', ''))
+        return self._catalog_requests.get(('title', str(title_id)),
+            lambda: self._get_title_details_uncached(title_id, slug))
 
-        try:
-            active_domain = self.get_active_sc_domain()
-            url = f"{active_domain}/it/titles/{title_id}-{slug}" if slug else f"{active_domain}/it/watch/{title_id}"
-            res = self.safe_get(url, timeout=6)
-            if res.status_code != 200:
-                res = self.safe_get(f"{active_domain}/it/watch/{title_id}", timeout=6)
-            if res.status_code != 200:
-                return {"error": "Impossibile caricare il titolo."}
-
-            match = re.search(r'data-page=\"(.*?)\"', res.text) or re.search(r"data-page='(.*?)'", res.text)
-            if not match:
-                return {"error": "Dati titolo non trovati."}
-
-            data = json.loads(html_module.unescape(match.group(1)))
-            props = data.get('props') or {}
-            cdn_url = props.get('cdn_url') or f"https://cdn.{active_domain.replace('https://', '')}"
-
-            media_info = props.get('title') or props.get('media') or props.get('loadedTitle') or {}
-            if not media_info:
-                return {"error": "Informazioni multimediali non trovate."}
-
-            found_slug = media_info.get('slug') or slug or media_info.get('name', '').lower().replace(' ', '-').replace(':', '')
-
-            images = (media_info.get('images') or []) if isinstance(media_info, dict) else []
-            if not images and found_slug:
-                try:
-                    t_url = f"{active_domain}/it/titles/{title_id}-{found_slug}"
-                    r_t = self.safe_get(t_url, timeout=5)
-                    m_t = re.search(r'data-page=\"(.*?)\"', r_t.text) or re.search(r"data-page='(.*?)'", r_t.text)
-                    if m_t:
-                        data_t = json.loads(html_module.unescape(m_t.group(1)))
-                        props_t = data_t.get('props') or {}
-                        t_media = props_t.get('title') or {}
-                        if isinstance(t_media, dict) and t_media.get('images'):
-                            media_info = t_media
-                except Exception:
-                    pass
-
-            poster_img, cover_img = self.extract_sc_images(media_info, cdn_url)
-            seasons = (media_info.get('seasons') or []) if isinstance(media_info, dict) else []
-            seasons_list = [s for s in seasons if isinstance(s, dict)]
-            loaded_season = props.get('loadedSeason') or {}
-            if not isinstance(loaded_season, dict): loaded_season = {}
-
-            title_name = media_info.get('name') or media_info.get('title') or 'Titolo Streaming'
-
-            episodes_list = []
-            episodes_src = (loaded_season.get('episodes') or []) if isinstance(loaded_season, dict) else []
-            if not episodes_src and props.get('episode'):
-                episodes_src = [props.get('episode')]
-
-            for ep in episodes_src:
-                if isinstance(ep, dict):
-                    ep_img = None
-                    for img in (ep.get('images') or []):
-                        if isinstance(img, dict) and img.get('filename'):
-                            ep_img = f"{cdn_url}/images/{img.get('filename')}"
-                            break
-                    episodes_list.append({
-                        "id": ep.get('id'),
-                        "number": ep.get('number'),
-                        "name": ep.get('name'),
-                        "plot": ep.get('plot', ''),
-                        "duration": ep.get('duration'),
-                        "image": ep_img,
-                        "watch_url": f"{active_domain}/it/watch/{title_id}?e={ep.get('id')}"
-                    })
-
-            has_dub_ita = bool(media_info.get('dub_ita', 1))
-            has_audio_orig = bool(media_info.get('audio_orig', 1))
-            has_sub_ita = bool(media_info.get('sub_ita', 0))
-            tmdb_id = media_info.get('tmdb_id')
-            imdb_id = media_info.get('imdb_id')
-            m_type = media_info.get('type', 'movie')
-
-            cast_list = []
-            if tmdb_id:
-                try:
-                    tmdb_mtype = 'tv' if m_type == 'tv' else 'movie'
-                    tmdb_u = f"https://api.themoviedb.org/3/{tmdb_mtype}/{tmdb_id}?api_key=4e44d9029b1270a757cddc766a1bcb63&language=it-IT&append_to_response=credits"
-                    r_tmdb = self.safe_get(tmdb_u, timeout=3)
-                    if r_tmdb and r_tmdb.status_code == 200:
-                        tmdb_json = r_tmdb.json()
-                        if tmdb_json.get('backdrop_path'):
-                            cover_img = f"https://image.tmdb.org/t/p/original{tmdb_json.get('backdrop_path')}"
-                        raw_cast = (tmdb_json.get('credits') or {}).get('cast') or []
-                        for actor in raw_cast[:20]:
-                            p_path = actor.get('profile_path')
-                            cast_list.append({
-                                "name": actor.get('name', ''),
-                                "character": actor.get('character', '') or 'Ruolo sconosciuto',
-                                "image": f"https://image.tmdb.org/t/p/w185{p_path}" if p_path else ""
-                            })
-                except Exception:
-                    pass
-
-            if not cast_list and media_info.get('main_actors'):
-                for act in (media_info.get('main_actors') or [])[:15]:
-                    if isinstance(act, dict) and act.get('name'):
-                        cast_list.append({
-                            "name": act.get('name', ''),
-                            "character": act.get('character', '') or (act.get('pivot') or {}).get('job', '') or 'Cast',
-                            "image": ""
-                        })
-
-            alt_sources = []
-            if tmdb_id:
-                eng_watch_url = f"https://vidsrc.xyz/embed/movie/{tmdb_id}" if m_type == 'movie' else f"https://vidsrc.xyz/embed/tv/{tmdb_id}"
-                alt_sources.append({
-                    "id": f"tmdb-{tmdb_id}",
-                    "name": title_name,
-                    "type": m_type,
-                    "source": "LookMovie / VidSrc",
-                    "lang": "eng",
-                    "flag": "🇬🇧",
-                    "watch_url": eng_watch_url
-                })
-
-            t_genres = []
-            for tg in (media_info.get('genres') or []):
-                if isinstance(tg, dict):
-                    g_name = tg.get('name')
-                    for tr in (tg.get('translations') or []):
-                        if isinstance(tr, dict) and tr.get('key') == 'name' and tr.get('value'):
-                            g_name = tr.get('value')
-                            break
-                    if g_name:
-                        t_genres.append(g_name)
-
-            final_rel = str(media_info.get('release_date') or media_info.get('year') or '').strip()
-            if final_rel and final_rel != '2024':
-                str_tid = str(title_id)
-                if self.dates_cache.get(str_tid) != final_rel:
-                    self.dates_cache[str_tid] = final_rel
-                    self._save_dates_cache()
-
-            return {
-                "domain": active_domain,
-                "id": title_id,
-                "slug": found_slug,
-                "name": title_name,
-                "type": m_type,
-                "plot": media_info.get('plot', ''),
-                "release_date": final_rel,
-                "score": media_info.get('score') or media_info.get('vote_average') or '',
-                "runtime": media_info.get('runtime') or '',
-                "genres": t_genres,
-                "poster": poster_img,
-                "cover": cover_img,
-                "source": "StreamingCommunity",
-                "lang": "ita",
-                "flag": "🇮🇹",
-                "dub_ita": has_dub_ita,
-                "audio_orig": has_audio_orig,
-                "sub_ita": has_sub_ita,
-                "tmdb_id": tmdb_id,
-                "imdb_id": imdb_id,
-                "alt_sources": alt_sources,
-                "audio_options": [
-                    {"id": "ita", "name": "Italiano (Doppiato)", "flag": "🇮🇹", "available": has_dub_ita, "watch_url": f"{active_domain}/it/watch/{title_id}"},
-                    {"id": "orig", "name": "Originale (ENG)", "flag": "🇬🇧", "available": has_audio_orig, "watch_url": f"{active_domain}/it/watch/{title_id}?audio=orig"}
-                ],
-                "sub_options": [
-                    {"id": "none", "name": "Disattivati", "flag": "🚫", "available": True},
-                    {"id": "ita", "name": "Italiano", "flag": "🇮🇹", "available": has_sub_ita}
-                ],
-                "seasons": seasons_list,
-                "seasons_count": len(seasons),
-                "current_season": loaded_season.get('number', 1),
-                "episodes": episodes_list,
-                "cast": cast_list
-            }
-        except Exception as ex:
-            return {"error": f"Errore caricamento dettagli: {str(ex)[:100]}"}
-
-    def _get_tmdb_title_details(self, tmdb_id):
-        try:
-            # Try movie first, then tv
-            for m_type in ['movie', 'tv']:
-                url = f"https://api.themoviedb.org/3/{m_type}/{tmdb_id}?api_key=4e44d9029b1270a757cddc766a1bcb63&language=it-IT"
-                r = self.session.get(url, timeout=5)
-                if r.status_code == 200:
-                    d = r.json()
-                    name = d.get('title') or d.get('name')
-                    plot = d.get('overview') or 'Nessuna trama disponibile in italiano.'
-                    poster = f"https://image.tmdb.org/t/p/w342{d.get('poster_path')}" if d.get('poster_path') else ''
-                    cover = f"https://image.tmdb.org/t/p/original{d.get('backdrop_path')}" if d.get('backdrop_path') else poster
-                    
-                    episodes = []
-                    seasons_count = len(d.get('seasons', [])) if m_type == 'tv' else 0
-                    if m_type == 'tv' and seasons_count > 0:
-                        s_url = f"https://api.themoviedb.org/3/tv/{tmdb_id}/season/1?api_key=4e44d9029b1270a757cddc766a1bcb63&language=it-IT"
-                        sr = self.session.get(s_url, timeout=4)
-                        if sr.status_code == 200:
-                            for ep in sr.json().get('episodes', []):
-                                ep_num = ep.get('episode_number')
-                                still_path = ep.get('still_path')
-                                ep_img = f"https://image.tmdb.org/t/p/w342{still_path}" if still_path else None
-                                episodes.append({
-                                    "id": f"{tmdb_id}-1-{ep_num}",
-                                    "number": ep_num,
-                                    "name": ep.get('name') or f"Episodio {ep_num}",
-                                    "plot": ep.get('overview') or '',
-                                    "duration": ep.get('runtime') or 45,
-                                    "image": ep_img,
-                                    "watch_url": f"https://vidsrc.xyz/embed/tv/{tmdb_id}/1-{ep_num}"
-                                })
-
-                    return {
-                        "id": f"tmdb-{tmdb_id}",
-                        "name": name,
-                        "type": m_type,
-                        "slug": str(tmdb_id),
-                        "plot": plot,
-                        "poster": poster,
-                        "cover": cover,
-                        "source": "LookMovie / VidSrc (ENG)",
-                        "lang": "eng",
-                        "flag": "🇬🇧",
-                        "seasons_count": seasons_count,
-                        "episodes": episodes,
-                        "watch_url": f"https://vidsrc.xyz/embed/movie/{tmdb_id}" if m_type == 'movie' else f"https://vidsrc.xyz/embed/tv/{tmdb_id}"
-                    }
-        except Exception as ex:
-            print("TMDB details error:", ex)
-        return {"error": "Dettagli internazionali non trovati."}
-
-    def _get_aw_title_details(self, slug):
-        try:
-            url = f"https://www.animeworld.ac/play/{slug}"
-            r = self.session.get(url, timeout=5)
-            if r.status_code == 200:
-                from bs4 import BeautifulSoup
-                soup = BeautifulSoup(r.text, 'html.parser')
-                title_el = soup.select_one('.title, h1.name, .info .name')
-                title_name = title_el.get_text(strip=True) if title_el else slug
-                plot_el = soup.select_one('.desc, .story, .plot')
-                plot = plot_el.get_text(strip=True) if plot_el else 'Anime disponibile su AnimeWorld.'
-                img_el = soup.select_one('.poster img, .thumb img, .thumb')
-                poster = img_el.get('src') if img_el else ''
-                if poster and not poster.startswith('http'):
-                    poster = f"https://www.animeworld.ac{poster}"
-
-                episodes = []
-                for idx, ep_a in enumerate(soup.select('.episodes li a, .server-episodes a')[:50], 1):
-                    ep_href = ep_a.get('href')
-                    ep_name = ep_a.get_text(strip=True) or f"Episodio {idx}"
-                    if ep_href:
-                        ep_watch = ep_href if ep_href.startswith('http') else f"https://www.animeworld.ac{ep_href}"
-                        episodes.append({
-                            "id": f"aw-{slug}-{idx}",
-                            "number": idx,
-                            "name": ep_name,
-                            "plot": "Episodio AnimeWorld",
-                            "duration": 24,
-                            "watch_url": ep_watch
-                        })
-
-                return {
-                    "id": f"aw-{slug}",
-                    "name": title_name,
-                    "type": "tv",
-                    "slug": slug,
-                    "plot": plot,
-                    "poster": poster,
-                    "cover": poster,
-                    "source": "AnimeWorld",
-                    "lang": "ita",
-                    "flag": "🇮🇹",
-                    "seasons_count": 1,
-                    "episodes": episodes,
-                    "watch_url": url
-                }
-        except Exception as ex:
-            print("AW details error:", ex)
-        return {"error": "Dettagli AnimeWorld non trovati."}
+    def _get_title_details_uncached(self, title_id, slug=""):
+        if str(title_id).startswith("gs-"):
+            res = Guardaserie(self.session).details(title_id)
+        else:
+            res = self.get_modern_title_details(title_id,slug)
+        if isinstance(res, dict):
+            self._sanitize_media_item(res)
+            for s in res.get('seasons', []):
+                for ep in s.get('episodes', []):
+                    self._sanitize_media_item(ep)
+        return res
 
     def get_season_episodes(self, title_id, slug, season_number):
-        str_id = str(title_id)
-        if str_id.startswith('tmdb-'):
-            tmdb_id = str_id.replace('tmdb-', '')
+        return self._catalog_requests.get(('season', str(title_id), int(season_number)),
+            lambda: self._get_season_episodes_uncached(title_id, slug, season_number))
+
+    def _get_season_episodes_uncached(self, title_id, slug, season_number):
+        details = self.get_title_details(title_id,slug)
+        season = next((s for s in details.get('seasons',[]) if int(s['number']) == int(season_number)),{})
+        if details.get('error'): return details
+        return {'season_number':int(season_number),'episodes':season.get('episodes',[]),
+                'seasons':[{k:s.get(k) for k in ('number','name','episodes_count')} for s in details.get('seasons',[])]}
+
+
+
+
+
+    def refresh_sc_stream_source(self, ref):
+        parsed = urllib.parse.urlsplit(ref)
+        if parsed.scheme != 'https' or parsed.hostname != 'v.vidxgo.co':
+            return None
+        headers = {'Referer': self.get_active_sc_domain().rstrip('/') + '/',
+                   'Sec-Fetch-Dest': 'iframe', 'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-Site': 'cross-site',
+                   'Cache-Control': 'no-cache'}
+        response = media_get(self.session, ref, headers=headers, timeout=8)
+        return parse_player_source(response.text) if response.status_code == 200 else None
+
+    def extract_modern_stream(self, watch_url, force=False, diagnostics=None):
+        from bs4 import BeautifulSoup
+        active_domain = 'https://streaming-community.biz'
+        if hasattr(self, 'get_active_sc_domain'):
             try:
-                s_url = f"https://api.themoviedb.org/3/tv/{tmdb_id}/season/{season_number}?api_key=4e44d9029b1270a757cddc766a1bcb63&language=it-IT"
-                sr = self.session.get(s_url, timeout=5)
-                if sr.status_code == 200:
-                    episodes = []
-                    for ep in sr.json().get('episodes', []):
-                        ep_num = ep.get('episode_number')
-                        still_path = ep.get('still_path')
-                        ep_img = f"https://image.tmdb.org/t/p/w342{still_path}" if still_path else None
-                        episodes.append({
-                            "id": f"{tmdb_id}-{season_number}-{ep_num}",
-                            "number": ep_num,
-                            "name": ep.get('name') or f"Episodio {ep_num}",
-                            "plot": ep.get('overview') or '',
-                            "duration": ep.get('runtime') or 45,
-                            "image": ep_img,
-                            "watch_url": f"https://vidsrc.xyz/embed/tv/{tmdb_id}/{season_number}-{ep_num}"
-                        })
-                    return {"season_number": season_number, "episodes": episodes}
-            except Exception as ex:
-                print("TMDB season fetch error:", ex)
-            return {"season_number": season_number, "episodes": []}
+                candidate = self.get_active_sc_domain()
+                if isinstance(candidate, str):
+                    active_domain = candidate
+            except Exception:
+                pass
+        active_parsed = urllib.parse.urlsplit(active_domain)
+        w_parsed = urllib.parse.urlsplit(watch_url)
+        if w_parsed.path.startswith('/titles/'):
+            watch_url = urllib.parse.urlunsplit((active_parsed.scheme, active_parsed.netloc, w_parsed.path, w_parsed.query, w_parsed.fragment))
 
-        try:
-            active_domain = self.get_active_sc_domain()
-            cdn_url = f"https://cdn.{active_domain.replace('https://', '')}"
-            headers = {
-                'X-Inertia': 'true',
-                'X-Requested-With': 'XMLHttpRequest'
-            }
+        with self._modern_stream_lock:
+            cached = self._modern_streams.get(watch_url)
+            if cached and not force and time.monotonic() - cached[0] < 300:
+                return cached[1]
 
-            base_path = f"/it/titles/{title_id}-{slug}" if slug else f"/it/titles/{title_id}"
-            r1 = self.session.get(f"{active_domain}{base_path}", timeout=5)
-            match = re.search(r'data-page=\"(.*?)\"', r1.text) or re.search(r"data-page='(.*?)'", r1.text)
-            if match:
-                version = json.loads(html_module.unescape(match.group(1))).get('version')
-                if version:
-                    headers['X-Inertia-Version'] = version
+        page = media_get(self.session, watch_url, timeout=8)
+        document = BeautifulSoup(page.text, 'html.parser') if page.status_code == 200 else None
+        iframe = document.select_one('.tc-player-frame iframe') if document else None
+        if not iframe:
+            if diagnostics is not None:
+                diagnostics.update(stage='watch_page', upstream_status=page.status_code, reason='iframe_missing')
+            return None
+        embed = urllib.parse.urljoin(watch_url, iframe.get('src', ''))
+        parsed = urllib.parse.urlsplit(embed)
+        if parsed.scheme != 'https' or parsed.hostname != 'v.vidxgo.co':
+            if diagnostics is not None:
+                diagnostics.update(stage='embed_host', reason='unexpected_host')
+            return None
+        canonical = document.select_one('link[rel="canonical"]')
+        source_url = canonical.get('href') if canonical else getattr(page, 'url', watch_url)
+        source_page = urllib.parse.urlsplit(source_url or watch_url)
+        player_headers = {
+            'Referer': f'{source_page.scheme}://{source_page.netloc}/',
+            'Sec-Fetch-Dest': 'iframe', 'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-Site': 'cross-site'
+        }
+        stream = None
+        for attempt in range(2):
+            player = media_get(self.session, embed, headers=player_headers, timeout=8)
+            if player.status_code == 200:
+                stream = parse_player_source(player.text)
+                if stream:
+                    break
+            if player.status_code not in (200, 403, 429, 502, 503):
+                break
+        if not stream:
+            if diagnostics is not None:
+                diagnostics.update(stage='player_page', upstream_status=player.status_code, reason='source_missing')
+            return None
+        extracted = {'master_m3u8': stream, 'vix_url': embed, 'headers': media_headers(embed),
+                     'subtitle_tracks': parse_player_subtitles(player.text, embed)}
+        self.sc_stream_tokens.register(stream, embed)
+        with self._modern_stream_lock:
+            if len(self._modern_streams) > 200:
+                self._modern_streams.clear()
+            self._modern_streams[watch_url] = (time.monotonic(), extracted)
+        return extracted
 
-            season_url = f"{active_domain}{base_path}/season-{season_number}"
-            r2 = self.session.get(season_url, headers=headers, timeout=6)
-            if r2.status_code == 200:
-                data = r2.json()
-                ls = data.get('props', {}).get('loadedSeason', {})
-                episodes = []
-                for ep in ls.get('episodes', []):
-                    ep_img = None
-                    for img in (ep.get('images') or []):
-                        if isinstance(img, dict) and img.get('filename'):
-                            ep_img = f"{cdn_url}/images/{img.get('filename')}"
-                            break
-                    episodes.append({
-                        "id": ep.get('id'),
-                        "number": ep.get('number'),
-                        "name": ep.get('name'),
-                        "plot": ep.get('plot', ''),
-                        "duration": ep.get('duration'),
-                        "image": ep_img,
-                        "watch_url": f"{active_domain}/it/watch/{title_id}?e={ep.get('id')}"
-                    })
-                return {"season_number": season_number, "episodes": episodes}
-        except Exception as ex:
-            return {"error": f"Errore caricamento stagione: {str(ex)[:100]}"}
-    def _build_vix_m3u8_url(self, playlist_url, token, expires, iframe_src=None, audio_orig=False, sub_ita=False, extra_params=None):
-        parsed = urllib.parse.urlparse(playlist_url)
-        path = parsed.path
-        if not path.endswith('.m3u8'):
-            path = path + '.m3u8'
-        
-        params = urllib.parse.parse_qs(parsed.query)
-        params['token'] = [token]
-        params['expires'] = [expires]
-
-        # Extract parameters from iframe_src if available (e.g. canPlayFHD -> h=1, scz -> scz=1, lang)
-        if iframe_src:
-            iframe_qs = urllib.parse.parse_qs(urllib.parse.urlparse(iframe_src).query)
-            if 'canPlayFHD' in iframe_qs or 'h' in iframe_qs:
-                params['h'] = ['1']
-            if 'scz' in iframe_qs:
-                params['scz'] = ['1']
-            if 'lang' in iframe_qs:
-                params['lang'] = [iframe_qs['lang'][0]]
-        else:
-            params.setdefault('h', ['1'])
-            params.setdefault('scz', ['1'])
-
-        if extra_params and isinstance(extra_params, dict):
-            for k, v in extra_params.items():
-                if v and k not in params:
-                    params[k] = [str(v)]
-
-        if audio_orig or 'audio' in params or 'orig' in parsed.query:
-            params['audio'] = ['orig']
-            params['lang'] = ['orig']
-        elif 'lang' not in params:
-            params['lang'] = ['it']
-
-        if sub_ita or 'sub' in params or 'sub=it' in parsed.query:
-            params['sub'] = ['it']
-        
-        flat_params = []
-        for k, v_list in params.items():
-            for v in v_list:
-                flat_params.append((k, v))
-                
-        new_query = urllib.parse.urlencode(flat_params)
-        return urllib.parse.urlunparse((parsed.scheme, parsed.netloc, path, parsed.params, new_query, parsed.fragment))
-
-    def extract_sc_m3u8(self, watch_url):
-        if any(d in watch_url.lower() for d in ['vidsrc', 'lookmovie', 'superembed', 'autoembed', '2embed']):
-            return {
-                "type": "hls",
-                "title": "International English Stream",
-                "master_m3u8": watch_url,
-                "vix_url": watch_url,
-                "is_embed": True,
-                "headers": {
-                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                    'Referer': watch_url
-                }
-            }
-
-        if 'vixcloud.co' in watch_url.lower():
-            parsed_v = urllib.parse.urlparse(watch_url)
-            embed_id_match = re.search(r'/(?:playlist|embed|iframe)/(\d+)', watch_url)
-            embed_id = embed_id_match.group(1) if embed_id_match else ""
-            referer_header = f"https://vixcloud.co/embed/{embed_id}" if embed_id else "https://vixcloud.co/"
-            
-            full_m3u8 = watch_url
-            if 'playlist' in watch_url and '.m3u8' not in parsed_v.path:
-                if not parsed_v.path.endswith('.m3u8'):
-                    new_path = parsed_v.path + '.m3u8'
-                    full_m3u8 = urllib.parse.urlunparse((parsed_v.scheme, parsed_v.netloc, new_path, parsed_v.params, parsed_v.query, parsed_v.fragment))
-
-            return {
-                "type": "hls",
-                "title": f"Stream Vixcloud ({embed_id or parsed_v.netloc})",
-                "master_m3u8": full_m3u8,
-                "vix_url": referer_header,
-                "headers": {
-                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                    'Referer': referer_header,
-                    'Origin': 'https://vixcloud.co'
-                }
-            }
-
-        try:
-            match_id = re.search(r'/(?:watch|titles)/(\d+)', watch_url)
-            title_id_ext = match_id.group(1) if match_id else None
-
-            parsed_input = urllib.parse.urlparse(watch_url)
-            query_params = urllib.parse.parse_qs(parsed_input.query)
-
-            req_ep_id = None
-            if 'e' in query_params:
-                req_ep_id = query_params['e'][0]
-            elif 'episode' in query_params:
-                req_ep_id = query_params['episode'][0]
-
-            req_season_num = int(query_params.get('s', ['0'])[0]) if 's' in query_params else None
-            req_ep_num = int(query_params.get('ep', ['0'])[0]) if 'ep' in query_params else None
-
-            session = cffi_requests.Session(impersonate='chrome')
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7'
-            }
-            session.headers.update(headers)
-
-            active_domain = self.get_active_sc_domain(watch_url)
-            domains = [
-                active_domain,
-                f"{parsed_input.scheme}://{parsed_input.netloc}" if parsed_input.netloc else None,
-                "https://streamingcommunity.computer",
-                "https://streamingcommunityz.support"
-            ]
-            domains = [d for d in domains if d]
-
-            res1 = None
-            working_url = watch_url
-            for d in domains:
+    def extract_guardaserie_stream(self, watch_url, force=False):
+        if not watch_url:
+            return None
+        with self._guardaserie_stream_lock:
+            cached = self._guardaserie_streams.get(watch_url)
+            if cached and not force and (time.monotonic() - cached[0] < 600):
+                return cached[1]
+        host = urllib.parse.urlsplit(watch_url).hostname
+        players = ([{'url': watch_url}] if host == 'vixsrc.to'
+                   else Guardaserie(self.session).players(watch_url))
+        res = None
+        for player in players:
+            if urllib.parse.urlsplit(player['url']).hostname != 'vixsrc.to':
+                continue
+            try:
+                res = self.guardoserie_streams.extract(player['url'], force=force)
+                if res:
+                    break
+            except Exception as error:
+                app.logger.warning('Guardaserie direct source unavailable: %s', type(error).__name__)
+        if not res:
+            for player in players:
                 try:
-                    test_url = f"{d}/it/watch/{title_id_ext}" if title_id_ext else watch_url
-                    if req_ep_id:
-                        test_url += f"?e={req_ep_id}"
-                    r = session.get(test_url, timeout=5, allow_redirects=True)
-                    if r.status_code == 200 and ('data-page' in r.text or 'inertia' in r.text):
-                        res1 = r
-                        working_url = test_url
+                    res = self.guardoserie_streams.extract(player['url'], force=force)
+                    if res:
                         break
                 except Exception:
-                    continue
-
-            if not res1:
-                res1 = session.get(watch_url, timeout=5, allow_redirects=True)
-
-            if res1.status_code != 200:
-                return None
-
-            inertia_match = re.search(r'data-page=\"(.*?)\"', res1.text) or re.search(r"data-page='(.*?)'", res1.text)
-            if not inertia_match:
-                return None
-
-            data_json = html_module.unescape(inertia_match.group(1))
-            data = json.loads(data_json)
-            props = data.get('props', {})
-
-            embed_url = props.get('embedUrl')
-            media_info = props.get('title') or props.get('media') or props.get('loadedTitle') or {}
-            title_name = media_info.get('name') or media_info.get('title') or 'Film/Serie Streaming'
-
-            if not embed_url and 'loadedTitle' in props:
-                loaded = props['loadedTitle']
-                title_id = loaded.get('id') or title_id_ext
-                seasons = loaded.get('seasons', [])
-                
-                selected_ep = None
-                if req_ep_id:
-                    for s in seasons:
-                        for ep in s.get('episodes', []):
-                            if str(ep.get('id')) == str(req_ep_id) or str(ep.get('number')) == str(req_ep_id):
-                                selected_ep = ep
-                                break
-                        if selected_ep: break
-
-                if not selected_ep and req_season_num and req_ep_num:
-                    for s in seasons:
-                        if s.get('number') == req_season_num:
-                            for ep in s.get('episodes', []):
-                                if ep.get('number') == req_ep_num:
-                                    selected_ep = ep
-                                    break
-                            if selected_ep: break
-
-                if not selected_ep and seasons and seasons[0].get('episodes'):
-                    selected_ep = seasons[0]['episodes'][0]
-
-                if selected_ep:
-                    ep_id = selected_ep.get('id')
-                    ep_num = selected_ep.get('number')
-                    s_num = selected_ep.get('season_number', 1)
-                    ep_name = selected_ep.get('name', '')
-                    title_name = f"{title_name} - S{s_num}E{ep_num} {ep_name}".strip()
-                    embed_url = f"{active_domain}/iframe/{title_id}?episode={ep_id}"
-
-            if not embed_url:
-                return None
-
-            episode_info = props.get('episode')
-            if episode_info:
-                ep_num = episode_info.get('number')
-                ep_name = episode_info.get('name')
-                title_name = f"{title_name} - Ep. {ep_num} {ep_name}".strip()
-
-            session.headers['Referer'] = watch_url
-            res2 = session.get(embed_url, timeout=6)
-
-            iframe_match = re.search(r'<iframe[^>]+src=\"(.*?)\"', res2.text) or re.search(r"<iframe[^>]+src='(.*?)'", res2.text)
-            if not iframe_match:
-                return None
-
-            iframe_src = html_module.unescape(iframe_match.group(1))
-
-            session.headers['Referer'] = embed_url
-            res3 = session.get(iframe_src, timeout=6)
-
-            token_match = re.search(r"'token':\s*'([^']+)'", res3.text)
-            expires_match = re.search(r"'expires':\s*'([^']+)'", res3.text)
-            playlist_match = re.search(r"url:\s*'([^']+)'", res3.text)
-
-            if not (token_match and expires_match and playlist_match):
-                return None
-
-            token = token_match.group(1)
-            expires = expires_match.group(1)
-            playlist_url = playlist_match.group(1)
-
-            extra_params = {}
-            master_params_match = re.search(r"masterPlaylist\s*=\s*\{.*?params:\s*(\{.*?\})", res3.text, re.DOTALL)
-            if master_params_match:
-                try:
-                    raw_p = master_params_match.group(1)
-                    for pm in re.finditer(r"['\"]?([a-zA-Z0-9_]+)['\"]?\s*:\s*['\"]([^'\"]*)['\"]", raw_p):
-                        if pm.group(2):
-                            extra_params[pm.group(1)] = pm.group(2)
-                except Exception:
                     pass
+        if res:
+            with self._guardaserie_stream_lock:
+                if len(self._guardaserie_streams) > 150:
+                    self._guardaserie_streams.clear()
+                self._guardaserie_streams[watch_url] = (time.monotonic(), res)
+        return res
 
-            full_m3u8 = self._build_vix_m3u8_url(playlist_url, token, expires, iframe_src=iframe_src, extra_params=extra_params)
+    def extract_sc_m3u8(self, watch_url):
+        if urllib.parse.urlsplit(watch_url or '').hostname in ('guardoseries.click', 'vixsrc.to'):
+            return self.extract_guardaserie_stream(watch_url)
+        domain = urllib.parse.urlsplit(self.get_active_sc_domain())
+        target = urllib.parse.urlsplit(watch_url or '')
+        if target.hostname != domain.hostname or not target.path.startswith('/titles/'): return None
+        result = self.extract_modern_stream(watch_url)
+        if not result: return None
+        return {**result,'type':'hls','title':'StreamingCommunity'}
 
-            return {
-                "type": "hls",
-                "title": title_name,
-                "master_m3u8": full_m3u8,
-                "vix_url": iframe_src,
-                "headers": {
-                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                    'Referer': 'https://vixcloud.co/',
-                    'Origin': 'https://vixcloud.co'
-                }
-            }
-        except Exception as ex:
-            return None
+
 
     def extract_vixcloud_details(self, watch_url):
         try:
@@ -1545,134 +1219,16 @@ class Engine:
             return {"error": f"Errore estrazione VixCloud: {str(ex)[:100]}"}
 
     def get_stream_qualities(self, url):
-        if any(d in url.lower() for d in ['vidsrc', 'lookmovie', 'superembed', 'autoembed', '2embed']):
-            return {
-                "title": "Stream HD (English)",
-                "url": url,
-                "master_m3u8": url,
-                "vix_url": url,
-                "qualities": [
-                    {"quality": "1080p", "label": "1080p Full HD (ENG)", "resolution": "1920x1080", "stream_url": url},
-                    {"quality": "720p", "label": "720p HD (ENG)", "resolution": "1280x720", "stream_url": url}
-                ],
-                "audio_tracks": [
-                    {"id": 0, "name": "English", "lang": "eng", "default": True, "forced": False}
-                ],
-                "subtitle_tracks": []
-            }
+        extracted = self.extract_sc_m3u8(url)
+        if not extracted: return {'error':'Flusso StreamingCommunity non disponibile'}
+        master = self.sc_stream_tokens.sign(extracted['master_m3u8'],extracted['vix_url'])
+        response = media_get(self.session,master,headers=extracted['headers'],timeout=8)
+        if response.status_code != 200: return {'error':'Playlist non disponibile'}
+        audio,subtitles,qualities = manifest_metadata(response.text,master,lambda resource:resource)
+        return {'success':True,'url':url,'master_m3u8':master,'vix_url':extracted['vix_url'],
+            'qualities':qualities,'audio_tracks':audio,'subtitle_tracks':subtitles}
 
-        try:
-            extracted = self.extract_sc_m3u8(url)
-            if not extracted:
-                return {"error": "Impossibile trovare il link video. Verifica che l'URL inserito sia corretto."}
 
-            master_m3u8 = extracted['master_m3u8']
-            vix_url = extracted['vix_url']
-            title = extracted['title']
-
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                'Referer': vix_url or 'https://vixcloud.co/',
-                'Origin': 'https://vixcloud.co'
-            }
-
-            r_pl = self.session.get(master_m3u8, headers=headers, timeout=8)
-            qualities = []
-            audio_tracks = []
-            subtitle_tracks = []
-
-            if r_pl.status_code == 200:
-                lines = r_pl.text.splitlines()
-                audio_seen = set()
-                subs_seen = set()
-
-                for idx, line in enumerate(lines):
-                    line_str = line.strip()
-                    if line_str.startswith('#EXT-X-STREAM-INF:'):
-                        res_match = re.search(r'RESOLUTION=(\d+x\d+)', line_str)
-                        resolution = res_match.group(1) if res_match else "HD"
-                        
-                        next_line = lines[idx + 1].strip() if idx + 1 < len(lines) else master_m3u8
-                        abs_stream_url = urllib.parse.urljoin(master_m3u8, next_line)
-                        
-                        if '1080' in resolution or '1920' in resolution:
-                            q_code = "1080p"
-                            label = "1080p Full HD"
-                        elif '720' in resolution or '1280' in resolution:
-                            q_code = "720p"
-                            label = "720p HD"
-                        else:
-                            q_code = "480p"
-                            label = f"{resolution.split('x')[-1]}p SD"
-                            
-                        qualities.append({
-                            "quality": q_code,
-                            "label": label,
-                            "resolution": resolution,
-                            "stream_url": abs_stream_url
-                        })
-                    elif line_str.startswith('#EXT-X-MEDIA:'):
-                        media_type = re.search(r'TYPE=([A-Z]+)', line_str)
-                        m_type = media_type.group(1) if media_type else ''
-                        name_match = re.search(r'NAME="([^"]+)"', line_str)
-                        name = name_match.group(1) if name_match else ''
-                        lang_match = re.search(r'LANGUAGE="([^"]+)"', line_str)
-                        lang = lang_match.group(1) if lang_match else ''
-                        default_match = re.search(r'DEFAULT=(YES|NO)', line_str)
-                        is_default = (default_match.group(1) == 'YES') if default_match else False
-                        forced_match = re.search(r'FORCED=(YES|NO)', line_str)
-                        is_forced = (forced_match.group(1) == 'YES') if forced_match else False
-                        uri_match = re.search(r'URI="([^"]+)"', line_str)
-                        uri = uri_match.group(1) if uri_match else ''
-                        if uri:
-                            uri = urllib.parse.urljoin(master_m3u8, uri)
-
-                        if m_type == 'AUDIO':
-                            track_key = (name, lang)
-                            if track_key not in audio_seen:
-                                audio_seen.add(track_key)
-                                audio_tracks.append({
-                                    "id": len(audio_tracks),
-                                    "name": name,
-                                    "lang": lang,
-                                    "default": is_default,
-                                    "forced": is_forced,
-                                    "uri": uri
-                                })
-                        elif m_type == 'SUBTITLES':
-                            track_key = (name, lang)
-                            if track_key not in subs_seen:
-                                subs_seen.add(track_key)
-                                subtitle_tracks.append({
-                                    "id": len(subtitle_tracks),
-                                    "name": name,
-                                    "lang": lang,
-                                    "default": is_default,
-                                    "forced": is_forced,
-                                    "uri": uri
-                                })
-
-            if not audio_tracks:
-                audio_tracks = [{"id": 0, "name": "Italian", "lang": "ita", "default": True, "forced": False, "uri": ""}]
-
-            if not qualities:
-                qualities = [
-                    {"quality": "1080p", "label": "1080p Full HD", "resolution": "1920x1080", "stream_url": master_m3u8},
-                    {"quality": "720p", "label": "720p HD", "resolution": "1280x720", "stream_url": master_m3u8},
-                    {"quality": "480p", "label": "480p SD", "resolution": "854x480", "stream_url": master_m3u8}
-                ]
-
-            return {
-                "title": title,
-                "url": url,
-                "master_m3u8": master_m3u8,
-                "vix_url": vix_url,
-                "qualities": qualities,
-                "audio_tracks": audio_tracks,
-                "subtitle_tracks": subtitle_tracks
-            }
-        except Exception as ex:
-            return {"error": f"Errore analisi link: {str(ex)[:100]}"}
 
     def start_download(self, url, media_type="hls", format_choice="1080p", custom_title=None, custom_headers=None, parent_folder=None, poster=None):
         download_id = f"dl_{int(time.time() * 1000)}"
@@ -1690,6 +1246,8 @@ class Engine:
 
         self.downloads[download_id] = {
             "download_id": download_id,
+            "format_choice": format_choice,
+            "media_type": media_type,
             "url": url,
             "title": custom_title or safe_title,
             "poster": poster,
@@ -1815,37 +1373,39 @@ class Engine:
 
             master_m3u8 = None
             vix_url = "https://vixcloud.co/"
+            extracted_headers = None
 
-            if ".m3u8" in url or "/playlist/" in url:
-                master_m3u8 = url
-                vix_url = (custom_headers and custom_headers.get("Referer")) or "https://vixcloud.co/"
-            elif "vixcloud.co" in url:
-                vix_url = url
-                res = self.extract_vixcloud_details(url)
-                if res and res.get("master_m3u8"):
-                    master_m3u8 = res["master_m3u8"]
-                    custom_title = custom_title or res.get("title")
+            # Unwrap proxy URLs if passed from frontend
+            actual_url = url
+            if '/api/stream/proxy' in actual_url or '/api/stream/segment' in actual_url:
+                parsed_proxy = urllib.parse.urlsplit(actual_url)
+                params = urllib.parse.parse_qs(parsed_proxy.query)
+                if params.get('url'):
+                    actual_url = params['url'][0]
+
+            if ".m3u8" in actual_url or "/playlist/" in actual_url:
+                master_m3u8 = actual_url
+                vix_url = (custom_headers or {}).get('Referer') or 'https://vixcloud.cc/'
             else:
-                extracted = self.extract_sc_m3u8(url)
-                if extracted and extracted.get("master_m3u8"):
-                    master_m3u8 = extracted["master_m3u8"]
-                    vix_url = extracted.get("vix_url") or "https://vixcloud.co/"
-                    custom_title = custom_title or extracted.get("title")
-                else:
-                    res = self.extract_vixcloud_details(url)
-                    if res and res.get("master_m3u8"):
-                        master_m3u8 = res["master_m3u8"]
-                        vix_url = res.get("vix_url") or "https://vixcloud.co/"
-                        custom_title = custom_title or res.get("title")
+                extracted = self.extract_sc_m3u8(actual_url)
+                if extracted:
+                    master_m3u8 = extracted['master_m3u8']
+                    vix_url = extracted['vix_url']
+                    custom_title = custom_title or extracted.get('title')
+                    extracted_headers = extracted['headers']
+            if not master_m3u8: raise ValueError('Flusso StreamingCommunity non disponibile')
+            headers_to_use = dict(extracted_headers or media_headers(vix_url))
+            if custom_headers and isinstance(custom_headers, dict):
+                headers_to_use.update(custom_headers)
 
-            if not master_m3u8:
-                raise Exception(f"Impossibile estrarre lo stream video da {url}")
-
-            headers_to_use = {
-                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                'Referer': vix_url or 'https://vixcloud.co/',
-                'Origin': 'https://vixcloud.co'
-            }
+            # Use the same renewing transport as playback for every HLS resource.
+            # Passing the provider URL straight to yt-dlp freezes its short-lived
+            # signature for the whole download, which stalls after a few minutes.
+            proxy_base = getattr(self, 'download_proxy_base', None)
+            if proxy_base:
+                master_m3u8 = proxy_base + '/api/stream/segment?' + urllib.parse.urlencode({
+                    'url': master_m3u8, 'ref': vix_url
+                })
 
             out_tmpl = os.path.join(dest_folder, f"{safe_title}.%(ext)s")
 
@@ -1912,13 +1472,13 @@ class Engine:
                 'nocheckcertificate': True,
                 'http_headers': headers_to_use,
                 'fragment_retries': 10,
-                'skip_unavailable_fragments': True,
+                'skip_unavailable_fragments': False,
                 'buffersize': 2097152,
                 'http_chunk_size': 10485760,
                 'socket_timeout': 15
             }
 
-            ydl_opts['concurrent_fragment_downloads'] = 4
+            ydl_opts['concurrent_fragment_downloads'] = 8
             if 'Referer' in headers_to_use:
                 ydl_opts['referer'] = headers_to_use['Referer']
             if 'User-Agent' in headers_to_use:
@@ -1926,10 +1486,12 @@ class Engine:
             if ffmpeg_dir:
                 ydl_opts['ffmpeg_location'] = ffmpeg_dir
 
-            h = format_choice.replace('p', '') if isinstance(format_choice, str) else '1080'
+            h = format_choice.removesuffix('p') if isinstance(format_choice, str) else '1080'
+            if h != 'best' and not h.isdigit():
+                raise ValueError('Qualità di download non valida')
             if ffmpeg_dir:
                 ydl_opts.update({
-                    'format': f'bv*[height<={h}]+ba/b[height<={h}]/best[height<={h}]',
+                    'format': f'bv*[height<=?{h}]+ba/b[height<=?{h}]/best[height<=?{h}]',
                     'merge_output_format': 'mp4',
                     'postprocessor_args': {
                         'ffmpeg': ['-c:v', 'copy', '-c:a', 'aac']
@@ -1937,8 +1499,11 @@ class Engine:
                 })
             else:
                 ydl_opts.update({
-                    'format': f'b[height<={h}]/best[height<={h}]/best'
+                    'format': f'b[height<=?{h}]/best[height<=?{h}]/best'
                 })
+
+            if h == 'best':
+                ydl_opts['format'] = 'bv*+ba/best' if ffmpeg_dir else 'best'
 
             try:
                 import yt_dlp
@@ -2078,9 +1643,13 @@ engine = Engine()
 # -------------------------------------------------------------
 # FLASK ROUTES
 # -------------------------------------------------------------
+@app.route('/healthz')
+def healthz():
+    return jsonify(status='ok')
+
 @app.route('/')
 def index():
-    resp = make_response(render_template('index.html'))
+    resp = make_response(render_template('index.html', watchparty_local=os.environ.get('WATCHPARTY_LOCAL_ONLY') == '1', tmdb_api_key=TMDB_API_KEY))
     resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate, max-age=0'
     resp.headers['Pragma'] = 'no-cache'
     resp.headers['Expires'] = '0'
@@ -2088,11 +1657,31 @@ def index():
 
 @app.route('/api/sc/domain', methods=['GET'])
 def get_sc_domain():
-    return jsonify({"domain": engine.get_active_sc_domain()})
+    refresh = request.args.get('refresh') == 'idle'
+    downloading = any(d.get('state') == 'running' for d in list(engine.downloads.values()))
+    domain = engine.get_active_sc_domain(refresh=refresh and not downloading)
+    return jsonify({"domain": domain, "deferred": bool(refresh and downloading)})
 
 @app.route('/api/sc/home', methods=['GET'])
 def home_sc():
     return jsonify(engine.get_home_catalog())
+
+@app.route('/api/sc/home/genre', methods=['GET'])
+def home_genre_sc():
+    genre=canonical_genre(request.args.get('genre',''))
+    if not genre:return jsonify(success=False,error='Genere non valido'),400
+    cached=engine._home_genre_cache.get(genre)
+    if cached and time.time()-cached[0]<300:return jsonify(cached[1])
+    result=engine.get_archive_catalog(genres=[genre],sort='updated_at',page=1)
+    if result.get('success') and result.get('titles'):
+        with engine._home_genre_lock:
+            engine._home_genre_cache[genre]=(time.time(),result)
+            try:
+                with open(engine._home_genre_file+'.tmp','w') as destination:json.dump(engine._home_genre_cache,destination)
+                os.replace(engine._home_genre_file+'.tmp',engine._home_genre_file)
+            except OSError:pass
+    elif cached:result=cached[1]
+    return jsonify(result)
 
 @app.route('/api/sc/random', methods=['GET', 'POST'])
 def random_sc():
@@ -2143,8 +1732,13 @@ def get_trailer():
     return jsonify({"success": False, "error": "Trailer non trovato"}), 404
 
 import base64 as _b64
-_DEFAULT_KEY_B64 = "QVEuQWI4Uk42S3FvMEZBci1MQkJPTndXWUR0dTZwVUJLUHhHSkpPMmFOOV9Ka29GUlVnc0E="
-DEFAULT_GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or _b64.b64decode(_DEFAULT_KEY_B64).decode()
+DEFAULT_GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+if not DEFAULT_GEMINI_API_KEY:
+    try:
+        with open(os.path.join(BASE_DIR, '.gemini_api_key')) as local_key:
+            DEFAULT_GEMINI_API_KEY = local_key.read().strip()
+    except OSError:
+        pass
 
 @app.route('/api/ai/chat', methods=['POST'])
 def ai_chat():
@@ -2431,7 +2025,6 @@ def get_actor_info():
 
     cleaned_awards = clean_actor_award_entries(raw_awards)
 
-    TMDB_API_KEY = '4e44d9029b1270a757cddc766a1bcb63'
     tmdb_films = []
     tmdb_photo = ''
     try:
@@ -2549,7 +2142,11 @@ def search_sc():
         titles = res.get('titles') or res.get('results') or []
     elif isinstance(res, list):
         titles = res
-    return jsonify({"success": True, "titles": titles, "results": titles})
+    for it in titles:
+        engine._sanitize_media_item(it)
+    return jsonify({"success": True, "titles": titles, "results": titles,
+                    "source_warnings": [Guardaserie.search_error(query.strip())] if Guardaserie.search_error(query.strip()) else []})
+
 
 @app.route('/api/sc/browse', methods=['GET', 'POST'])
 @app.route('/api/sc/genre', methods=['GET', 'POST'])
@@ -2561,6 +2158,8 @@ def browse_sc():
     page = request.args.get('page') or data.get('page', 1)
     res = engine.get_archive_catalog(media_type=m_type, genres=[genre] if genre else None, sort=sort, page=page)
     titles = res.get('titles', [])
+    for it in titles:
+        engine._sanitize_media_item(it)
     return jsonify({"success": True, "titles": titles, "totalCount": res.get('totalCount', len(titles)), "page": res.get('page', 1), "hasMore": res.get('hasMore', False)})
 
 @app.route('/api/sc/archive', methods=['GET', 'POST'])
@@ -2609,6 +2208,11 @@ def archive_meta_sc():
     res = engine.get_archive_metadata()
     return jsonify(res)
 
+@app.route('/api/sc/resolve', methods=['POST'])
+def resolve_primary_sc():
+    data = request.get_json(silent=True) or {}
+    return jsonify(engine.resolve_primary_item(data))
+
 @app.route('/api/sc/title/<title_id>', methods=['GET'])
 @app.route('/api/sc/details/<title_id>', methods=['GET'])
 @app.route('/api/sc/details', methods=['GET', 'POST'])
@@ -2641,7 +2245,7 @@ def get_cast_route(title_id=None):
         try:
             import urllib.parse
             clean_q = title_name.split('(')[0].strip()
-            s_u = f"https://api.themoviedb.org/3/search/{m_type}?api_key=4e44d9029b1270a757cddc766a1bcb63&language=it-IT&query={urllib.parse.quote(clean_q)}"
+            s_u = f"https://api.themoviedb.org/3/search/{m_type}?api_key={TMDB_API_KEY}&language=it-IT&query={urllib.parse.quote(clean_q)}"
             r_s = engine.safe_get(s_u, timeout=3)
             if r_s and r_s.status_code == 200:
                 s_json = r_s.json()
@@ -2653,11 +2257,11 @@ def get_cast_route(title_id=None):
 
     if tmdb_id:
         try:
-            c_u = f"https://api.themoviedb.org/3/{m_type}/{tmdb_id}/credits?api_key=4e44d9029b1270a757cddc766a1bcb63&language=it-IT"
+            c_u = f"https://api.themoviedb.org/3/{m_type}/{tmdb_id}/credits?api_key={TMDB_API_KEY}&language=it-IT"
             r_c = engine.safe_get(c_u, timeout=3)
             if r_c and r_c.status_code == 200:
                 c_json = r_c.json()
-                for actor in (c_json.get('cast') or [])[:20]:
+                for actor in (c_json.get('cast') or []):
                     p_path = actor.get('profile_path')
                     cast_list.append({
                         "name": actor.get('name', ''),
@@ -2685,7 +2289,8 @@ def season_sc(title_id=None, season_num=None):
     eps = []
     if isinstance(res, dict):
         eps = res.get('episodes') or []
-    return jsonify({"success": True, "episodes": eps, "season_number": s_num})
+    return jsonify({"success": not bool(isinstance(res, dict) and res.get('error')), "episodes": eps, "season_number": s_num,
+                    "seasons": res.get('seasons', []) if isinstance(res, dict) else []})
 
 @app.route('/api/sc/episode/outro', methods=['GET', 'POST'])
 def episode_outro_sc():
@@ -2728,7 +2333,7 @@ def episode_outro_sc():
     tmdb_runtime = None
     if tmdb_id:
         try:
-            tmdb_url = f"https://api.themoviedb.org/3/tv/{tmdb_id}/season/{season_num}/episode/{ep_num}?api_key=4e44d9029b1270a757cddc766a1bcb63&language=it-IT"
+            tmdb_url = f"https://api.themoviedb.org/3/tv/{tmdb_id}/season/{season_num}/episode/{ep_num}?api_key={TMDB_API_KEY}&language=it-IT"
             r_ep = engine.safe_get(tmdb_url, timeout=3)
             if r_ep and r_ep.status_code == 200:
                 ep_json = r_ep.json()
@@ -2768,29 +2373,109 @@ def qualities_sc():
     url = (request.get_json(silent=True) or {}).get('url', '')
     return jsonify(engine.get_stream_qualities(url))
 
-@app.route('/api/vixcloud/extract', methods=['GET', 'POST', 'OPTIONS'])
-def extract_vixcloud():
-    if request.method == 'OPTIONS':
-        return jsonify({"success": True})
-    data = request.get_json(silent=True) or {}
-    url = data.get('url') or request.args.get('url', '')
-    title_id = data.get('titleId') or data.get('id') or request.args.get('titleId')
-    ep_id = data.get('episodeId') or data.get('e') or request.args.get('episodeId')
-    
-    if not url and title_id:
-        active_domain = engine.get_active_sc_domain()
-        url = f"{active_domain}/it/watch/{title_id}"
-        if ep_id:
-            url += f"?e={ep_id}"
 
-    res = engine.extract_vixcloud_details(url)
-    if isinstance(res, dict):
-        return jsonify(res)
-    return jsonify({"master_m3u8": "", "embed_url": "", "vix_url": ""})
+@app.route('/api/vixcloud/extract', methods=['GET','POST','OPTIONS'])
+def extract_vixcloud():
+    if request.method == 'OPTIONS': return jsonify(success=True)
+    data = request.get_json(silent=True) or {}
+    url = data.get('url') or request.args.get('url','')
+    if not url: return jsonify(success=False,error='Titolo StreamingCommunity non valido'),400
+    if urllib.parse.urlsplit(url).hostname in ('guardoseries.click', 'vixsrc.to'):
+        try:
+            result = engine.extract_guardaserie_stream(url, force=data.get('force') is True)
+            if not result:
+                return jsonify(success=False, error='Nessun flusso diretto disponibile su questo server Guardaserie'), 502
+            if not result.get('manifest_text'):
+                response = media_get(engine.session, result['master_m3u8'], headers=result['headers'], timeout=12)
+                response.raise_for_status()
+                result['manifest_text'] = response.text
+            def resource(target):
+                return '/api/stream/segment?' + urllib.parse.urlencode({'url': target, 'ref': result['vix_url']})
+            audio, subtitles, qualities = manifest_metadata(result['manifest_text'], result['master_m3u8'], resource)
+            proxy = '/api/stream/proxy?' + urllib.parse.urlencode({'url': url})
+            return jsonify(success=True, is_embed=False, provider='guardoseries', master_m3u8=proxy,
+                           vix_url=result['vix_url'], audio_tracks=audio, subtitle_tracks=subtitles, qualities=qualities)
+        except Exception as error:
+            app.logger.warning('Guardaserie extraction failed: %s', type(error).__name__)
+            return jsonify(success=False, error='Flusso diretto Guardaserie temporaneamente non disponibile'), 502
+
+    active_sc_domain = engine.get_active_sc_domain()
+    domain = urllib.parse.urlsplit(active_sc_domain)
+    target = urllib.parse.urlsplit(url)
+    watch_match = re.search(r'/(?:it/)?watch/(\d+)', target.path)
+    if target.path.startswith('/titles/'):
+        url = urllib.parse.urlunsplit((domain.scheme, domain.netloc, target.path, target.query, target.fragment))
+    elif watch_match:
+        url = urllib.parse.urlunsplit((domain.scheme, domain.netloc, f"/titles/{watch_match.group(1)}/watching", target.query, target.fragment))
+    elif target.hostname != domain.hostname:
+        return jsonify(success=False,error='Apri il titolo dal catalogo StreamingCommunity ripristinato'),400
+    try:
+        diagnostics = {}
+        result = engine.extract_modern_stream(url,force=data.get('force') is True,diagnostics=diagnostics)
+        if not result:
+            app.logger.warning('StreamingCommunity extraction unavailable: %s', diagnostics)
+            return jsonify(success=False,error='Flusso StreamingCommunity temporaneamente non disponibile',diagnostics=diagnostics),502
+        if not result.get('manifest_text'):
+            try:
+                sign_master = engine.sc_stream_tokens.sign(result['master_m3u8'], result['vix_url'])
+                m_res = media_get(engine.session, sign_master, headers=result['headers'], timeout=6)
+                if m_res.status_code == 200:
+                    result['manifest_text'] = m_res.text
+            except Exception:
+                pass
+        proxy = '/api/stream/proxy?' + urllib.parse.urlencode({'url':url})
+        tracks = [{**track,'uri':'/api/stream/segment?' + urllib.parse.urlencode({'url':track['uri'],'ref':track['referrer']})}
+                  for track in result.get('subtitle_tracks',[])]
+        return jsonify(success=True,master_m3u8=proxy,vix_url=result['vix_url'],embed_url=result['vix_url'],subtitle_tracks=tracks)
+    except Exception as error:
+        app.logger.warning('StreamingCommunity extraction failed: %s',type(error).__name__)
+        return jsonify(success=False,error='Flusso StreamingCommunity temporaneamente non disponibile'),502
+
+
+
+from src.online_subtitles import OnlineSubtitles
+online_subtitles = OnlineSubtitles(engine, TMDB_API_KEY)
+
+@app.route('/api/subtitles/search', methods=['POST'])
+def search_online_subtitles():
+    item = request.get_json(silent=True) or {}
+    if not isinstance(item, dict): return jsonify(error='Titolo non valido'), 400
+    try:
+        return jsonify(success=True, tracks=online_subtitles.search(item), source='OpenSubtitles / Stremio')
+    except (ValueError, TypeError) as error:
+        return jsonify(error=str(error)), 400
+    except Exception:
+        return jsonify(error='Ricerca sottotitoli temporaneamente non disponibile. Riprova.'), 502
+
+@app.route('/api/subtitles/file/<token>.vtt')
+def load_online_subtitle(token):
+    if not re.fullmatch(r'[0-9a-f]{32}', token):return jsonify(error='Traccia non valida'), 404
+    try:
+        return Response(online_subtitles.load(token), content_type='text/vtt; charset=utf-8',
+            headers={'Cache-Control':'private, max-age=300', 'X-Content-Type-Options':'nosniff'})
+    except KeyError:
+        return jsonify(error='Traccia scaduta. Ripeti la ricerca.'), 404
+    except Exception:
+        return jsonify(error='Sottotitoli non disponibili. Prova un’altra traccia.'), 502
+
+
+@app.route('/api/download/options', methods=['POST'])
+def get_download_options():
+    from src.download_options import download_options
+    item = request.get_json(silent=True) or {}
+    if not isinstance(item, dict):
+        return jsonify(error='Titolo non valido'), 400
+    try:
+        return jsonify(success=True, sources=download_options(engine, Guardaserie(engine.session), item))
+    except (ValueError, TypeError):
+        return jsonify(error='Titolo o episodio non valido'), 400
+
 
 @app.route('/api/download/start', methods=['POST'])
 def start_download():
     data = request.get_json() or {}
+    # The server's listening port, rather than the client-controlled Host header.
+    engine.download_proxy_base = f"http://127.0.0.1:{int(request.environ.get('SERVER_PORT', 5555))}"
     return jsonify(engine.start_download(
         url=data.get('url'),
         media_type=data.get('media_type', 'hls'),
@@ -2867,7 +2552,10 @@ def stream_proxy_manifest():
     if not watch_url:
         return jsonify({"error": "Parametro URL mancante"}), 400
 
-    extracted = engine.extract_sc_m3u8(watch_url)
+    modern = '/titles/' in urllib.parse.urlsplit(watch_url).path and '/watching' in urllib.parse.urlsplit(watch_url).path
+    guardaserie = urllib.parse.urlsplit(watch_url).hostname in ('guardoseries.click', 'vixsrc.to')
+    extracted = (engine.extract_guardaserie_stream(watch_url, force=bool(request.args.get('renew'))) if guardaserie else
+                 engine.extract_modern_stream(watch_url, force=bool(request.args.get('renew'))) if modern else engine.extract_sc_m3u8(watch_url))
     if not extracted:
         return jsonify({"error": "Impossibile estrarre lo stream Vixcloud"}), 404
 
@@ -2880,12 +2568,24 @@ def stream_proxy_manifest():
         'Origin': 'https://vixcloud.co'
     }
 
+    if guardaserie:
+        headers = extracted['headers']
+    if modern:
+        headers = extracted['headers']
+        master_m3u8 = engine.sc_stream_tokens.sign(master_m3u8, vix_url)
     try:
-        r = engine.session.get(master_m3u8, headers=headers, timeout=8)
-        if r.status_code != 200:
-            return jsonify({"error": "Impossibile recuperare il manifest HLS"}), 500
-
-        content = r.text
+        content = extracted.get('manifest_text')
+        if not content:
+            r = media_get(engine.session, master_m3u8, headers=headers, timeout=8)
+            if modern and r.status_code in (401, 403):
+                extracted = engine.extract_modern_stream(watch_url, force=True)
+                if extracted:
+                    master_m3u8, vix_url = extracted['master_m3u8'], extracted['vix_url']
+                    r = media_get(engine.session, master_m3u8, headers=extracted['headers'], timeout=8)
+            if r.status_code != 200:
+                return jsonify({"error": "Impossibile recuperare il manifest HLS"}), 500
+            content = r.text
+            extracted['manifest_text'] = content
         lines = content.splitlines()
         rewritten_lines = []
 
@@ -2915,22 +2615,76 @@ def stream_proxy_manifest():
         return jsonify({"error": str(ex)}), 500
 
 
+
+
+
+_cdn_pooled_session = None
+_cdn_pooled_lock = threading.Lock()
+_playlist_cache = {}
+_playlist_lock = threading.Lock()
+_segment_cache = {}
+_segment_lock = threading.Lock()
+
+def get_cdn_pooled_session():
+    global _cdn_pooled_session
+    if _cdn_pooled_session is None:
+        with _cdn_pooled_lock:
+            if _cdn_pooled_session is None:
+                s = requests.Session()
+                adapter = requests.adapters.HTTPAdapter(
+                    pool_connections=64,
+                    pool_maxsize=64,
+                    max_retries=1,
+                    pool_block=False
+                )
+                s.mount('https://', adapter)
+                s.mount('http://', adapter)
+                _cdn_pooled_session = s
+    return _cdn_pooled_session
+
 @app.route('/api/stream/segment', methods=['GET'])
 def stream_proxy_segment():
     segment_url = request.args.get('url', '')
-    ref_url = request.args.get('ref', 'https://vixcloud.co/')
+    ref_url = request.args.get('ref', '')
     if not segment_url:
         return jsonify({"error": "Parametro URL segment mancante"}), 400
 
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Referer': ref_url,
-        'Origin': 'https://vixcloud.co'
-    }
+    segment_url = engine.sc_stream_tokens.sign(segment_url, ref_url)
+    parsed_seg = urllib.parse.urlsplit(segment_url)
+    is_vidxgo = (
+        parsed_seg.hostname == 'v.vidxgo.co' or
+        (parsed_seg.hostname and (parsed_seg.hostname.endswith('.d2b.you') or 'd2b' in parsed_seg.hostname)) or
+        (ref_url and 'vidxgo' in ref_url)
+    )
 
+    if is_vidxgo:
+        effective_ref = ref_url if (ref_url and 'vidxgo' in ref_url) else 'https://v.vidxgo.co/'
+        headers = media_headers(effective_ref)
+    else:
+        effective_ref = ref_url or 'https://vixcloud.cc/'
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Referer': effective_ref,
+            'Origin': urllib.parse.urlsplit(effective_ref).scheme + '://' + urllib.parse.urlsplit(effective_ref).netloc
+        }
     try:
-        r = engine.session.get(segment_url, headers=headers, timeout=12)
-        if '.m3u8' in segment_url.lower() or 'playlist' in segment_url.lower():
+        is_manifest = '.m3u8' in parsed_seg.path.lower() or 'playlist' in parsed_seg.path.lower()
+        if is_manifest:
+            with _playlist_lock:
+                cached_pl = _playlist_cache.get(segment_url)
+                if cached_pl and time.monotonic() - cached_pl[0] < 45:
+                    return Response(cached_pl[1], mimetype='application/vnd.apple.mpegurl', headers={
+                        'Access-Control-Allow-Origin': '*',
+                        'Cache-Control': 'public, max-age=15'
+                    })
+            r = media_get(engine.session, segment_url, headers=headers, timeout=10)
+            if r.status_code in (401, 403):
+                renewed_url = engine.sc_stream_tokens.sign(segment_url, ref_url, force=True)
+                if renewed_url != segment_url:
+                    segment_url = renewed_url
+                    r = media_get(engine.session, segment_url, headers=headers, timeout=10)
+            if r.status_code != 200:
+                return jsonify({"error": "Risorsa video temporaneamente non disponibile"}), r.status_code
             content = r.text
             lines = content.splitlines()
             rewritten_lines = []
@@ -2951,21 +2705,82 @@ def stream_proxy_segment():
                 else:
                     rewritten_lines.append(line_str)
 
-            return Response("\n".join(rewritten_lines), mimetype='application/vnd.apple.mpegurl', headers={'Access-Control-Allow-Origin': '*'})
-        else:
-            mime = r.headers.get('content-type') or ('application/octet-stream' if 'enc.key' in segment_url or '.key' in segment_url else 'video/MP2T')
-            return Response(r.content, mimetype=mime, headers={
+            response_text = "\n".join(rewritten_lines)
+            with _playlist_lock:
+                if len(_playlist_cache) > 80:
+                    _playlist_cache.clear()
+                _playlist_cache[segment_url] = (time.monotonic(), response_text)
+            return Response(response_text, mimetype='application/vnd.apple.mpegurl', headers={
                 'Access-Control-Allow-Origin': '*',
-                'Access-Control-Allow-Headers': '*',
-                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-                'Cache-Control': 'public, max-age=3600'
+                'Cache-Control': 'public, max-age=15'
             })
+
+        # Fast Segment in-memory cache check
+        if '_segment_lock' in globals() and '_segment_cache' in globals():
+            with _segment_lock:
+                cached_seg = _segment_cache.get(segment_url)
+            if cached_seg and time.monotonic() - cached_seg[0] < 300:
+                c_data, c_status, c_type = cached_seg[1], cached_seg[2], cached_seg[3]
+                if c_type == 'text/html':
+                    c_type = 'video/mp2t'
+                return Response(c_data, status=c_status, content_type=c_type, headers={
+                    'Access-Control-Allow-Origin': '*',
+                    'Content-Length': str(len(c_data)),
+                    'Accept-Ranges': 'bytes',
+                    'Cache-Control': 'public, max-age=86400, immutable'
+                })
+
+        # Video chunk / segment: progressive streaming
+        if request.headers.get('Range'):
+            headers['Range'] = request.headers['Range']
+        client = getattr(engine, 'session', None) or cffi_requests.Session(impersonate='chrome120')
+        upstream = media_get(client, segment_url, headers=headers, stream=True, timeout=15)
+        if upstream.status_code in (401, 403):
+            renewed_url = engine.sc_stream_tokens.sign(segment_url, ref_url, force=True)
+            if renewed_url != segment_url:
+                segment_url = renewed_url
+                upstream = media_get(client, segment_url, headers=headers, stream=True, timeout=15)
+
+        if upstream.status_code not in (200, 206):
+            return jsonify(error='Risorsa video temporaneamente non disponibile'), upstream.status_code
+
+        raw_c_type = upstream.headers.get('Content-Type', '')
+        url_lower = segment_url.lower()
+        if 'enc.key' in url_lower or url_lower.endswith('.key') or '/storage/key' in url_lower or 'key' in parsed_seg.path.lower():
+            c_type = 'application/octet-stream'
+        elif '.vtt' in url_lower or 'subtitle' in url_lower:
+            c_type = 'text/vtt'
+        elif '/audio/' in url_lower:
+            c_type = 'video/mp2t'
+        elif '/video/' in url_lower or '.ts' in url_lower or '.html' in parsed_seg.path or raw_c_type == 'text/html':
+            c_type = 'video/mp2t'
+        else:
+            c_type = raw_c_type or 'video/mp2t'
+        outgoing = {key: upstream.headers[key] for key in
+                    ('Content-Range', 'Content-Length', 'Accept-Ranges') if upstream.headers.get(key)}
+        if 'Accept-Ranges' not in outgoing:
+            outgoing['Accept-Ranges'] = 'bytes'
+        outgoing['Access-Control-Allow-Origin'] = '*'
+        outgoing['Cache-Control'] = 'public, max-age=86400, immutable'
+        outgoing['X-Accel-Buffering'] = 'no'
+
+        def generate():
+            try:
+                for chunk in upstream.iter_content(chunk_size=131072):
+                    if chunk:
+                        yield chunk
+            finally:
+                if hasattr(upstream, 'close'):
+                    upstream.close()
+
+        return Response(generate(), status=upstream.status_code, content_type=c_type, headers=outgoing)
     except Exception as ex:
         return jsonify({"error": str(ex)}), 500
 
 
+
 # HISTORY PERSISTENCE ON DISK
-HISTORY_FILE = ensure_seed_data(os.path.expanduser("~/.streamingcommunity_history.json"), "history.json")
+HISTORY_FILE = ensure_seed_data(user_data_file("history.json", "~/.streamingcommunity_history.json"), "history.json")
 history_lock = threading.RLock()
 
 def load_history_data():
@@ -2998,7 +2813,7 @@ def save_history_data(history_list):
         except Exception as e:
             print("Error saving history to disk:", e)
 
-FAVORITES_FILE = ensure_seed_data(os.path.expanduser("~/.streamingcommunity_favorites.json"), "favorites.json")
+FAVORITES_FILE = ensure_seed_data(user_data_file("favorites.json", "~/.streamingcommunity_favorites.json"), "favorites.json")
 favorites_lock = threading.RLock()
 
 def load_favorites_data():
@@ -3035,7 +2850,7 @@ def save_favorites_data(fav_data):
 # -------------------------------------------------------------
 # MULTI-USER PROFILES SYSTEM (PERSISTENCE & SECURITY)
 # -------------------------------------------------------------
-PROFILES_FILE = ensure_seed_data(os.path.expanduser("~/.streamingcommunity_profiles.json"), "profiles.json")
+PROFILES_FILE = ensure_seed_data(user_data_file("profiles.json", "~/.streamingcommunity_profiles.json"), "profiles.json")
 AVATARS_DIR = os.path.expanduser("~/.streamingcommunity/avatars")
 try:
     os.makedirs(AVATARS_DIR, exist_ok=True)
@@ -3368,7 +3183,7 @@ def sync_user_data():
 # -------------------------------------------------------------
 # WATCHPARTY — SYNCHRONIZED VIEWING BETWEEN PROFILES
 # -------------------------------------------------------------
-WATCHPARTY_FILE = ensure_seed_data(os.path.expanduser("~/.streamingcommunity_watchparty.json"), "watchparty.json")
+WATCHPARTY_FILE = ensure_seed_data(user_data_file("watchparty.json", "~/.streamingcommunity_watchparty.json"), "watchparty.json")
 WATCHPARTY_LOCK = threading.RLock()
 
 def load_watchparty_data():
@@ -3395,7 +3210,8 @@ def cleanup_old_sessions(data):
     import time as _time
     now = _time.time() * 1000
     max_age = 3600000 * 2  # 2 hours
-    data["sessions"] = [s for s in data.get("sessions", []) if (now - s.get("created_at", 0)) < max_age]
+    data["sessions"] = [s for s in data.get("sessions", [])
+        if (now - s.get("created_at", 0)) < max_age and streamingcommunity_item(s.get('item'))]
     return data
 
 @app.route('/api/watchparty/create', methods=['POST'])
@@ -3408,6 +3224,8 @@ def watchparty_create():
 
     if not host_profile_id or not item:
         return jsonify({"success": False, "error": "Parametri mancanti"}), 400
+    if not streamingcommunity_item(item):
+        return jsonify(success=False,error='Seleziona un titolo StreamingCommunity'),400
 
     profiles_data = load_profiles_data()
     host_prof = get_profile_by_id(profiles_data, host_profile_id)
@@ -3466,6 +3284,7 @@ def watchparty_create():
     return jsonify({"success": True, "session_id": session_id, "session": session})
 
 def proxy_to_render_wp(endpoint, method="GET", json_data=None, params=None):
+    if os.environ.get("WATCHPARTY_LOCAL_ONLY") == "1": return None
     try:
         import urllib.request
         import urllib.parse
@@ -3601,6 +3420,7 @@ def watchparty_sync():
                 if isinstance(req.get("item"), dict):
                     allowed = ("id", "name", "title", "slug", "type", "poster",
                                "backdrop", "cover", "current_watch_url",
+                               "provider", "source", "source_format", "external_url", "watch_url",
                                "current_episode_id", "current_episode_number",
                                "current_season_number", "current_ep_name",
                                "current_ep_title", "currentTime", "current_time")
@@ -3616,6 +3436,16 @@ def watchparty_sync():
         return jsonify(remote)
 
     return jsonify({"success": False, "error": "Sessione non trovata o non attiva"}), 404
+
+# Chat uses the same room identity, with a separate store from playback commands.
+from src.watchparty_chat import register_watchparty_chat
+
+def lookup_chat_session(session_id):
+    # Playback authority lives on the shared hub, including for localhost users.
+    remote = proxy_to_render_wp("state", method="GET", params={"session_id": session_id})
+    return remote.get("session") if remote and remote.get("success") else None
+
+register_watchparty_chat(app, lookup_chat_session)
 
 @app.route('/api/watchparty/state', methods=['GET'])
 def watchparty_state():
@@ -3908,6 +3738,15 @@ if SOCKETIO_AVAILABLE and socketio:
                         }, to=f"room:{room_id}")
                         emit('members-update', {"members": state["members"]}, to=f"room:{room_id}")
 
+def streamingcommunity_item(item):
+    if not isinstance(item, dict): return False
+    if item.get('provider') == 'guardoseries':
+        return bool(re.fullmatch(r'gs-[0-9a-f]+', str(item.get('titleId') or item.get('id') or '')))
+    if item.get('provider') and item['provider'] != 'streamingcommunity': return False
+    if item.get('source') and not str(item['source']).startswith('StreamingCommunity'): return False
+    identifier = str(item.get('series_id') or item.get('titleId') or item.get('id') or '').split('_')[0]
+    return identifier.isdigit()
+
 @app.route('/api/history', methods=['GET'])
 def get_history():
     profile_id = request.args.get('profile_id')
@@ -3930,6 +3769,7 @@ def get_history():
             except Exception: pass
         return 0.0
 
+    raw_list = [item for item in raw_list if streamingcommunity_item(item)]
     raw_list.sort(key=parse_ts, reverse=True)
     return jsonify(raw_list)
 
@@ -3939,8 +3779,8 @@ def get_favorites():
     profiles_data = load_profiles_data()
     target_prof = get_profile_by_id(profiles_data, profile_id) if profile_id else get_profile_by_id(profiles_data, profiles_data.get("active_profile_id"))
     if target_prof:
-        return jsonify(target_prof.get("favorites", {}))
-    return jsonify(load_favorites_data())
+        return jsonify({k:v for k,v in target_prof.get("favorites", {}).items() if streamingcommunity_item(v)})
+    return jsonify({k:v for k,v in load_favorites_data().items() if streamingcommunity_item(v)})
 
 @app.route('/api/favorites/save', methods=['POST'])
 def save_favorites():
@@ -3949,6 +3789,7 @@ def save_favorites():
     fav_items = data.get('favorites') if (isinstance(data, dict) and 'favorites' in data) else data
     if isinstance(fav_items, dict) and 'profile_id' in fav_items:
         fav_items = {k: v for k, v in fav_items.items() if k != 'profile_id'}
+    fav_items = {k:v for k,v in fav_items.items() if streamingcommunity_item(v)} if isinstance(fav_items,dict) else {}
 
     profiles_data = load_profiles_data()
     target_prof = get_profile_by_id(profiles_data, profile_id) if profile_id else get_profile_by_id(profiles_data, profiles_data.get("active_profile_id"))
@@ -3967,6 +3808,9 @@ def save_history_item():
         data = dict(data['item'])
         if pid:
             data['profile_id'] = pid
+
+    if not streamingcommunity_item(data):
+        return jsonify(error='Titolo StreamingCommunity non valido'),400
 
     item_id = str(data.get('id') or data.get('url') or '').strip()
     if not item_id:
@@ -4088,7 +3932,7 @@ def clear_history():
 # -------------------------------------------------------------
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
-AUTH_SESSION_FILE = os.path.expanduser("~/.streamingcommunity_auth.json")
+AUTH_SESSION_FILE = user_data_file("auth.json", "~/.streamingcommunity_auth.json")
 
 def load_auth_session():
     if os.path.exists(AUTH_SESSION_FILE):
@@ -4407,7 +4251,8 @@ def update_cast_state():
     CURRENT_CAST_STATE.update(data)
     return jsonify({"success": True, "state": CURRENT_CAST_STATE})
 
-@app.route('/tv')
+@app.route('/tv', methods=['GET', 'HEAD', 'OPTIONS'])
+@app.route('/tv/', methods=['GET', 'HEAD', 'OPTIONS'])
 def tv_player_page():
     return render_template('tv.html')
 
@@ -4434,6 +4279,7 @@ def find_free_port(start_port=5555):
         return p
 
 def run_flask_on_port(port_num):
+    engine.download_proxy_base = f'http://127.0.0.1:{int(port_num)}'
     app.run(host='0.0.0.0', port=port_num, debug=False, use_reloader=False)
 
 if __name__ == '__main__':

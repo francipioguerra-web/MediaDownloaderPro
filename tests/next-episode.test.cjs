@@ -34,9 +34,11 @@ test('fallback resolves the following season without losing the startup lock',as
  assert.equal(t.calls[2][1].current_episode_id,20);
  t.release();await p;
 });
-test('guests cannot advance independently',async()=>{
+test('guests can request the next episode through the shared player',async()=>{
  const t=setup({id:11,number:2});t.ctx.isWatchPartyGuest=()=>true;
- await t.ctx.triggerNextEpisode();assert.equal(t.calls.length,0);
+ const pending=t.ctx.triggerNextEpisode();
+ assert.equal(t.calls[2][1].current_episode_id,11);
+ t.release();await pending;
 });
 for(const [i,m] of [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].entries()) {
  if(m[1].trim()) new vm.Script(m[1],{filename:`inline-${i}`});
