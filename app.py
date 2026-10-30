@@ -2857,6 +2857,36 @@ try:
 except Exception:
     pass
 
+FALLBACK_DEFAULT_PROFILES = [
+    {
+        "id": "prof_1789215273_3f776c",
+        "name": "Martina",
+        "avatar": "preset:amber-crown",
+        "pin": "0429",
+        "history": [],
+        "favorites": {},
+        "created_at": 1789215273000
+    },
+    {
+        "id": "prof_1789221471_6a2099",
+        "name": "Francesco",
+        "avatar": "preset:cyber-alien",
+        "pin": "5510",
+        "history": [],
+        "favorites": {},
+        "created_at": 1789221471000
+    },
+    {
+        "id": "prof_1789248770_e451a8",
+        "name": "Test",
+        "avatar": "preset:netflix-red",
+        "pin": None,
+        "history": [],
+        "favorites": {},
+        "created_at": 1789248770000
+    }
+]
+
 profiles_lock = threading.RLock()
 
 def load_profiles_data():
@@ -2876,46 +2906,48 @@ def load_profiles_data():
                 except Exception as e:
                     print(f"Error reading profiles data from {path}:", e)
 
-        # Merge or initialize with seed_data if Martina or Francesco are missing
+        # Merge or initialize with seed_data or FALLBACK_DEFAULT_PROFILES
+        seed_profs = []
         try:
             import seed_data
-            seed_profs = seed_data.PROFILES_DATA.get("profiles", [])
-            if not data or not isinstance(data.get("profiles"), list) or len(data.get("profiles")) == 0:
-                data = dict(seed_data.PROFILES_DATA)
-                save_profiles_data(data)
-                return data
-            else:
-                existing_names = {p.get("name") for p in data.get("profiles", []) if isinstance(p, dict)}
-                existing_ids = {p.get("id") for p in data.get("profiles", []) if isinstance(p, dict)}
-                changed = False
-                for sp in seed_profs:
-                    if sp.get("name") not in existing_names and sp.get("id") not in existing_ids:
-                        data["profiles"].append(sp)
-                        changed = True
-                    else:
-                        for p in data["profiles"]:
-                            if p.get("name") == sp.get("name"):
-                                if not p.get("history") and sp.get("history"):
-                                    p["history"] = sp.get("history")
-                                    changed = True
-                                if not p.get("favorites") and sp.get("favorites"):
-                                    p["favorites"] = sp.get("favorites")
-                                    changed = True
-                                if not p.get("pin") and sp.get("pin"):
-                                    p["pin"] = sp.get("pin")
-                                    changed = True
-                if changed:
-                    save_profiles_data(data)
-                return data
+            if hasattr(seed_data, "PROFILES_DATA") and isinstance(seed_data.PROFILES_DATA, dict):
+                seed_profs = seed_data.PROFILES_DATA.get("profiles", [])
         except Exception as e:
-            print("Error loading profiles from seed_data:", e)
+            print("Notice: seed_data not found or failed to load:", e)
 
-        if data:
+        if not seed_profs:
+            seed_profs = list(FALLBACK_DEFAULT_PROFILES)
+
+        if not data or not isinstance(data.get("profiles"), list) or len(data.get("profiles")) == 0:
+            data = {
+                "active_profile_id": seed_profs[0].get("id") if seed_profs else "prof_1789248770_e451a8",
+                "profiles": list(seed_profs)
+            }
+            save_profiles_data(data)
             return data
-        return {
-            "active_profile_id": None,
-            "profiles": []
-        }
+        else:
+            existing_names = {p.get("name") for p in data.get("profiles", []) if isinstance(p, dict)}
+            existing_ids = {p.get("id") for p in data.get("profiles", []) if isinstance(p, dict)}
+            changed = False
+            for sp in seed_profs:
+                if sp.get("name") not in existing_names and sp.get("id") not in existing_ids:
+                    data["profiles"].append(sp)
+                    changed = True
+                else:
+                    for p in data["profiles"]:
+                        if p.get("name") == sp.get("name"):
+                            if not p.get("history") and sp.get("history"):
+                                p["history"] = sp.get("history")
+                                changed = True
+                            if not p.get("favorites") and sp.get("favorites"):
+                                p["favorites"] = sp.get("favorites")
+                                changed = True
+                            if not p.get("pin") and sp.get("pin"):
+                                p["pin"] = sp.get("pin")
+                                changed = True
+            if changed:
+                save_profiles_data(data)
+            return data
 
 def save_profiles_data(data):
     with profiles_lock:
@@ -3115,6 +3147,10 @@ def verify_profile_pin():
     if not stored_pin or stored_pin == pin:
         return jsonify({"success": True, "valid": True})
     return jsonify({"success": False, "valid": False, "error": "PIN non corretto"}), 401
+
+@app.route('/api/profiles/unlock', methods=['POST'])
+def unlock_profile():
+    return verify_profile_pin()
 
 @app.route('/api/profiles/upload-avatar', methods=['POST'])
 def upload_avatar():

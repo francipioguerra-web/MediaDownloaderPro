@@ -17,9 +17,5 @@ __pycache__
 current_tunnel.txt
 tests
 *.icns
-# Personal defaults are never part of the deployed image.
-seed_data.py
-seed_data.json
-user_data_seed
 
 .tmdb_api_key

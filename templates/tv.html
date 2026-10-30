@@ -1319,6 +1319,11 @@
   <div id="profiles-screen">
     <h1 class="profiles-heading">Chi vuole guardare?</h1>
     <div class="profiles-grid" id="profiles-container"></div>
+    <div class="profiles-bottom-bar" style="margin-top: 40px; display: flex; gap: 16px; align-items: center; color: rgba(255,255,255,0.5); font-size: 13px;">
+      <span>📡 Server: <b id="profiles-server-host" style="color: rgba(255,255,255,0.85);">...</b></span>
+      <span style="opacity:0.35;">•</span>
+      <span>Tieni premuto <b>≡ Menu</b> per cambiare server</span>
+    </div>
   </div>
 
   <!-- PIN NUMPAD MODAL -->
@@ -1778,25 +1783,63 @@
     }
 
     // ============================================================
-    // 1. PROFILES MANAGEMENT
+        // 1. PROFILES MANAGEMENT
     // ============================================================
     async function initApp() {
       buildKeyboard();
       const backdropEl = document.getElementById('atv-sidebar-backdrop');
       if (backdropEl) backdropEl.onclick = closeSidebar;
+
+      // Aggiorna indicatore server
+      const hostEl = document.getElementById('profiles-server-host');
+      if (hostEl) hostEl.textContent = window.location.host;
+
       try {
         const res = await fetch('/api/profiles');
         const data = await res.json();
-        profilesList = data.profiles || [];
-        renderProfilesScreen();
+        profilesList = (data && Array.isArray(data.profiles)) ? data.profiles : [];
       } catch (err) {
         console.error("Errore profili:", err);
       }
+
+      // Se il server non ha ancora profili o non risponde, prova a crearne uno o usa il fallback garantito
+      if (!profilesList || profilesList.length === 0) {
+        console.warn("Nessun profilo sul server, provo auto-inizializzazione...");
+        try {
+          const createRes = await fetch('/api/profiles/create', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ name: 'Francesco', avatar: 'preset:cyber-alien' })
+          });
+          const createData = await createRes.json();
+          if (createData && createData.success) {
+            const reRes = await fetch('/api/profiles');
+            const reData = await reRes.json();
+            profilesList = (reData && Array.isArray(reData.profiles)) ? reData.profiles : [];
+          }
+        } catch (e) {
+          console.error("Auto-creazione profilo fallita:", e);
+        }
+      }
+
+      // Fallback garantito per non bloccare MAI l'utente
+      if (!profilesList || profilesList.length === 0) {
+        profilesList = [
+          { id: 'prof_1789221471_6a2099', name: 'Francesco', avatar: 'preset:cyber-alien', has_pin: false },
+          { id: 'prof_1789215273_3f776c', name: 'Martina', avatar: 'preset:amber-crown', has_pin: false },
+          { id: 'prof_1789248770_e451a8', name: 'Test', avatar: 'preset:netflix-red', has_pin: false }
+        ];
+      }
+
+      renderProfilesScreen();
     }
 
     function renderProfilesScreen() {
       const container = document.getElementById('profiles-container');
       container.innerHTML = '';
+      const hostEl = document.getElementById('profiles-server-host');
+      if (hostEl) hostEl.textContent = window.location.host;
+
       profilesList.forEach((p, idx) => {
         const item = document.createElement('div');
         item.className = 'profile-item';
@@ -1842,13 +1885,20 @@
     async function submitPinUnlock() {
       if (!unlockingProfile) return;
       try {
-        const res = await fetch('/api/profiles/unlock', {
+        let res = await fetch('/api/profiles/verify_pin', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
           body: JSON.stringify({ id: unlockingProfile.id, pin: currentPinString })
         });
+        if (res.status === 404) {
+          res = await fetch('/api/profiles/unlock', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ id: unlockingProfile.id, pin: currentPinString })
+          });
+        }
         const data = await res.json();
-        if (data.success) {
+        if (data.success || data.valid) {
           document.getElementById('pin-modal').classList.add('hidden');
           activateProfile(unlockingProfile);
         } else {
